@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Alert
+  Alert,
+  Keyboard
 } from 'react-native';
 import { useTheme } from '../../models/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -40,8 +41,24 @@ const StatsScreen = () => {
   const [userPrompt, setUserPrompt] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [businessContext, setBusinessContext] = useState<any>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const loadBusinessContext = useCallback(async () => {
     if (!user) return;
@@ -124,8 +141,8 @@ const StatsScreen = () => {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 115 : 0}
     >
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>ASIKA AI</Text>
@@ -150,8 +167,26 @@ const StatsScreen = () => {
         )}
       />
 
-      <View style={[styles.inputContainer, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
-        <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[
+        styles.inputContainer,
+        {
+          backgroundColor: colors.background,
+          paddingBottom: keyboardVisible ? 2 : (Platform.OS === 'ios' ? 30 : 10),
+          paddingTop: 5
+        }
+      ]}>
+        <View style={[
+          styles.inputWrapper,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.05,
+            shadowRadius: 5,
+            elevation: 3
+          }
+        ]}>
           <TextInput
             style={[styles.input, { color: colors.text }]}
             placeholder="Posez votre question..."
@@ -194,8 +229,18 @@ const styles = StyleSheet.create({
   messageBubble: { padding: 12, borderRadius: 18 },
   messageText: { fontSize: 15, lineHeight: 22 },
   loadingBubble: { marginLeft: 20, marginBottom: 20 },
-  inputContainer: { padding: 10, paddingBottom: Platform.OS === 'ios' ? 20 : 10 },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', borderRadius: 25, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 5 },
+  inputContainer: {
+    paddingHorizontal: 15,
+    paddingTop: 5,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 30,
+    borderWidth: 1,
+    paddingHorizontal: 15,
+    paddingVertical: 5
+  },
   input: { flex: 1, paddingVertical: 8, fontSize: 15, marginRight: 10, maxHeight: 100 },
   sendBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' }
 });

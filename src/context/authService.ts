@@ -22,9 +22,10 @@ export const authService = {
     if (error) throw error;
   },
 
-  findUserById: async (userId: string, retries = 3): Promise<User | null> => {
+  findUserById: async (userId: string, retries = 5): Promise<User | null> => {
     for (let i = 0; i < retries; i++) {
       try {
+        console.log(`[AuthService] Recherche profil tentative ${i + 1}/${retries} pour:`, userId);
         const { data, error } = await supabase
           .from('users')
           .select('*')
@@ -32,21 +33,17 @@ export const authService = {
           .single();
 
         if (error) {
-          if (error.code === 'PGRST116') {
-            console.warn(`Profil non trouvé (tentative ${i + 1}/${retries}) pour l'ID:`, userId);
-            if (i < retries - 1) {
-              await new Promise(resolve => setTimeout(resolve, 1000)); // Attendre 1s avant de réessayer
-              continue;
-            }
-            return null;
+          console.warn("[AuthService] Erreur Supabase:", error.message);
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            continue;
           }
-          throw error;
+          return null;
         }
         return data ? mapSupabaseUserToAppUser(data) : null;
       } catch (e) {
-        console.error(`Erreur findUserById (tentative ${i + 1}):`, e);
         if (i === retries - 1) return null;
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
       }
     }
     return null;

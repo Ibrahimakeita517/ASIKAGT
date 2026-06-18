@@ -297,95 +297,97 @@ const StockScreen = () => {
       {/* Modal d'ajout/édition */}
       <Modal visible={showModal} animationType="slide" transparent={true}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
         >
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {isEditing ? 'Modifier Produit' : 'Nouveau Produit'}
-              </Text>
-              <TouchableOpacity onPress={() => setShowModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={[styles.label, { color: colors.text }]}>Nom du produit</Text>
-              <TextInput
-                style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-                placeholder="Ex: Sac de Riz"
-                placeholderTextColor={colors.textMuted}
-                value={newProduct.name}
-                onChangeText={(text) => setNewProduct({...newProduct, name: text})}
-              />
-
-              <View style={styles.row}>
-                <View style={{ flex: 1, marginRight: 10 }}>
-                  <Text style={[styles.label, { color: colors.text }]}>Prix Achat</Text>
-                  <TextInput
-                    style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-                    placeholder="0"
-                    keyboardType="numeric"
-                    value={newProduct.purchasePrice}
-                    onChangeText={(text) => setNewProduct({...newProduct, purchasePrice: text})}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.label, { color: colors.text }]}>Prix Vente</Text>
-                  <TextInput
-                    style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-                    placeholder="0"
-                    keyboardType="numeric"
-                    value={newProduct.price}
-                    onChangeText={(text) => setNewProduct({...newProduct, price: text})}
-                  />
-                </View>
-              </View>
-
-              <Text style={[styles.label, { color: colors.text }]}>
-                {isEditing ? 'Nouvelle Quantité Totale' : 'Quantité initiale'}
-              </Text>
-              <TextInput
-                style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-                placeholder="0"
-                keyboardType="numeric"
-                value={newProduct.quantity}
-                onChangeText={(text) => setNewProduct({...newProduct, quantity: text})}
-              />
-              {isEditing && (
-                <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 5 }}>
-                  Note: Si vous augmentez la quantité, une entrée sera enregistrée dans l'historique.
-                </Text>
-              )}
-
-              {newProduct.price && newProduct.purchasePrice && (
-                <View style={styles.profitPreview}>
-                  <Text style={{ color: colors.textMuted }}>Bénéfice estimé : </Text>
-                  <Text style={{ color: colors.secondary, fontWeight: 'bold' }}>
-                    {formatCurrency(parseFloat(newProduct.price.replace(',', '.') || '0') - parseFloat(newProduct.purchasePrice.replace(',', '.') || '0'))} / unité
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+              <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>
+                    {isEditing ? 'Modifier Produit' : 'Nouveau Produit'}
                   </Text>
+                  <TouchableOpacity onPress={() => setShowModal(false)}>
+                    <Ionicons name="close" size={24} color={colors.text} />
+                  </TouchableOpacity>
                 </View>
-              )}
 
-              <TouchableOpacity
-                style={[styles.submitBtn, { backgroundColor: colors.primary }]}
-                onPress={handleAddProduct}
-              >
-                <Text style={styles.submitBtnText}>
-                  {isEditing ? 'Enregistrer les modifications' : 'Ajouter au stock'}
+                <Text style={[styles.label, { color: colors.text }]}>Nom du produit</Text>
+                <TextInput
+                  style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                  placeholder="Ex: Sac de Riz"
+                  placeholderTextColor={colors.textMuted}
+                  value={newProduct.name}
+                  onChangeText={(text) => setNewProduct({...newProduct, name: text})}
+                />
+
+                <View style={styles.row}>
+                  <View style={{ flex: 1, marginRight: 10 }}>
+                    <Text style={[styles.label, { color: colors.text }]}>Prix Achat</Text>
+                    <TextInput
+                      style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                      placeholder="0"
+                      keyboardType="numeric"
+                      value={newProduct.purchasePrice}
+                      onChangeText={(text) => setNewProduct({...newProduct, purchasePrice: text})}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.label, { color: colors.text }]}>Prix Vente</Text>
+                    <TextInput
+                      style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                      placeholder="0"
+                      keyboardType="numeric"
+                      value={newProduct.price}
+                      onChangeText={(text) => setNewProduct({...newProduct, price: text})}
+                    />
+                  </View>
+                </View>
+
+                <Text style={[styles.label, { color: colors.text }]}>
+                  {isEditing ? 'Nouvelle Quantité Totale' : 'Quantité initiale'}
                 </Text>
-              </TouchableOpacity>
+                <TextInput
+                  style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                  placeholder="0"
+                  keyboardType="numeric"
+                  value={newProduct.quantity}
+                  onChangeText={(text) => setNewProduct({...newProduct, quantity: text})}
+                />
+                {isEditing && (
+                  <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 5 }}>
+                    Note: Si vous augmentez la quantité, une entrée sera enregistrée dans l'historique.
+                  </Text>
+                )}
 
-              {isEditing && (
+                {newProduct.price && newProduct.purchasePrice && (
+                  <View style={styles.profitPreview}>
+                    <Text style={{ color: colors.textMuted }}>Bénéfice estimé : </Text>
+                    <Text style={{ color: colors.secondary, fontWeight: 'bold' }}>
+                      {formatCurrency(parseFloat(newProduct.price.replace(',', '.') || '0') - parseFloat(newProduct.purchasePrice.replace(',', '.') || '0'))} / unité
+                    </Text>
+                  </View>
+                )}
+
                 <TouchableOpacity
-                  style={[styles.deleteBtn]}
-                  onPress={handleDeleteProduct}
+                  style={[styles.submitBtn, { backgroundColor: colors.primary }]}
+                  onPress={handleAddProduct}
                 >
-                  <Text style={[styles.deleteBtnText, { color: colors.danger }]}>Supprimer le produit</Text>
+                  <Text style={styles.submitBtnText}>
+                    {isEditing ? 'Enregistrer les modifications' : 'Ajouter au stock'}
+                  </Text>
                 </TouchableOpacity>
-              )}
-            </ScrollView>
+
+                {isEditing && (
+                  <TouchableOpacity
+                    style={[styles.deleteBtn]}
+                    onPress={handleDeleteProduct}
+                  >
+                    <Text style={[styles.deleteBtnText, { color: colors.danger }]}>Supprimer le produit</Text>
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>

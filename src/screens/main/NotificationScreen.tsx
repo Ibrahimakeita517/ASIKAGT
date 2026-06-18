@@ -6,7 +6,11 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  Modal
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Alert
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../models/ThemeContext';
@@ -56,13 +60,23 @@ const NotificationScreen = () => {
   const handleSendMessage = async () => {
     if (!user || !messageContent.trim()) return;
     setSending(true);
-    const success = await notificationService.sendMessage(user.id, 'admin', messageContent, messageType);
-    if (success) {
-      setMessageContent('');
-      setIsModalVisible(false);
-      loadMessages();
+
+    try {
+      const success = await notificationService.sendMessage(user.id, 'admin', messageContent, messageType);
+
+      if (success) {
+        Alert.alert("Succès", "Votre message a été envoyé à l'administration.");
+        setMessageContent('');
+        setIsModalVisible(false);
+        loadMessages();
+      } else {
+        Alert.alert("Erreur", "Le message n'a pas pu être envoyé. Vérifiez votre connexion ou contactez le support.");
+      }
+    } catch (error) {
+      Alert.alert("Erreur", "Une erreur technique est survenue lors de l'envoi.");
+    } finally {
+      setSending(false);
     }
-    setSending(false);
   };
 
   const renderItem = ({ item }: { item: Message }) => {
@@ -134,56 +148,63 @@ const NotificationScreen = () => {
       />
 
       <Modal visible={isModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Contacter l'administrateur</Text>
-              <TouchableOpacity onPress={() => setIsModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.textMuted} />
-              </TouchableOpacity>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+              <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Contacter l'administrateur</Text>
+                  <TouchableOpacity onPress={() => setIsModalVisible(false)}>
+                    <Ionicons name="close" size={24} color={colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={[styles.label, { color: colors.text }]}>Type de demande</Text>
+                <View style={styles.typeRow}>
+                  {(['support', 'reclamation', 'info'] as const).map((t) => (
+                    <TouchableOpacity
+                      key={t}
+                      style={[
+                        styles.typeChip,
+                        { borderColor: colors.border },
+                        messageType === t && { backgroundColor: colors.primary, borderColor: colors.primary }
+                      ]}
+                      onPress={() => setMessageType(t)}
+                    >
+                      <Text style={[
+                        styles.typeChipText,
+                        { color: colors.text },
+                        messageType === t && { color: '#FFF' }
+                      ]}>
+                        {t === 'support' ? 'Support' : t === 'reclamation' ? 'Réclamation' : 'Amélioration'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Input
+                  label="Votre message"
+                  placeholder="Expliquez votre problème ou suggestion..."
+                  multiline
+                  numberOfLines={5}
+                  value={messageContent}
+                  onChangeText={setMessageContent}
+                />
+
+                <Button
+                  title="Envoyer le message"
+                  onPress={handleSendMessage}
+                  loading={sending}
+                  disabled={!messageContent.trim()}
+                  style={{ marginTop: 20 }}
+                />
+              </ScrollView>
             </View>
-
-            <Text style={[styles.label, { color: colors.text }]}>Type de demande</Text>
-            <View style={styles.typeRow}>
-              {(['support', 'reclamation', 'info'] as const).map((t) => (
-                <TouchableOpacity
-                  key={t}
-                  style={[
-                    styles.typeChip,
-                    { borderColor: colors.border },
-                    messageType === t && { backgroundColor: colors.primary, borderColor: colors.primary }
-                  ]}
-                  onPress={() => setMessageType(t)}
-                >
-                  <Text style={[
-                    styles.typeChipText,
-                    { color: colors.text },
-                    messageType === t && { color: '#FFF' }
-                  ]}>
-                    {t === 'support' ? 'Support' : t === 'reclamation' ? 'Réclamation' : 'Amélioration'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Input
-              label="Votre message"
-              placeholder="Expliquez votre problème ou suggestion..."
-              multiline
-              numberOfLines={5}
-              value={messageContent}
-              onChangeText={setMessageContent}
-            />
-
-            <Button
-              title="Envoyer le message"
-              onPress={handleSendMessage}
-              loading={sending}
-              disabled={!messageContent.trim()}
-              style={{ marginTop: 20 }}
-            />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

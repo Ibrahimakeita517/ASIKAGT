@@ -64,6 +64,19 @@ export const mapSupabaseProductToAppProduct = (supabaseProduct: any): Product =>
   };
 };
 
+// Mapper pour les messages
+export const mapSupabaseMessageToAppMessage = (m: any): Message => {
+  return {
+    id: m.id,
+    senderId: m.sender_id,
+    receiverId: m.receiver_id,
+    content: m.content,
+    sentAt: m.sent_at,
+    isRead: m.is_read,
+    type: m.type
+  };
+};
+
 // Mapper pour convertir notre type Product (camelCase) vers les données Supabase (snake_case)
 export const mapAppProductToSupabaseInsert = (appProduct: any) => {
   // On n'envoie que les colonnes de base qui existent SÛREMENT dans ton Supabase

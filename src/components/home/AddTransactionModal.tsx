@@ -133,82 +133,84 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={[styles.modalContent, { backgroundColor: colors.surface }]}
           >
-            <View style={styles.header}>
-              <Text style={[styles.title, { color: colors.text }]}>
-                {type === 'sale' ? '➕ Ajouter une Vente' : '➖ Ajouter une Dépense'}
-              </Text>
-              <TouchableOpacity onPress={onClose}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            {type === 'sale' && products.length > 0 && (
-              <View style={styles.stockSection}>
-                <Text style={[styles.label, { color: colors.text }]}>Sélectionner un produit :</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.productPicker}>
-                  {products.map(p => (
-                    <TouchableOpacity 
-                      key={p.id} 
-                      onPress={() => handleSelectProduct(p)}
-                      style={[
-                        styles.productChip, 
-                        { backgroundColor: colors.surface, borderColor: selectedProductId === p.id ? colors.primary : colors.border }
-                      ]}
-                    >
-                      <Text style={{ color: selectedProductId === p.id ? colors.primary : colors.text }}>{p.name}</Text>
-                      <Text style={[styles.chipPrice, { color: colors.textMuted }]}>{p.price} F</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+              <View style={styles.header}>
+                <Text style={[styles.title, { color: colors.text }]}>
+                  {type === 'sale' ? '➕ Ajouter une Vente' : '➖ Ajouter une Dépense'}
+                </Text>
+                <TouchableOpacity onPress={onClose}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
               </View>
-            )}
 
-            {productsLoading && <ActivityIndicator color={colors.primary} style={{ marginBottom: 10 }} />}
+              {type === 'sale' && products.length > 0 && (
+                <View style={styles.stockSection}>
+                  <Text style={[styles.label, { color: colors.text }]}>Sélectionner un produit :</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.productPicker}>
+                    {products.map(p => (
+                      <TouchableOpacity
+                        key={p.id}
+                        onPress={() => handleSelectProduct(p)}
+                        style={[
+                          styles.productChip,
+                          { backgroundColor: colors.surface, borderColor: selectedProductId === p.id ? colors.primary : colors.border }
+                        ]}
+                      >
+                        <Text style={{ color: selectedProductId === p.id ? colors.primary : colors.text }}>{p.name}</Text>
+                        <Text style={[styles.chipPrice, { color: colors.textMuted }]}>{p.price} F</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
 
-            <Input
-              label="Montant (FCFA)"
-              placeholder="Ex: 5000"
-              keyboardType="numeric"
-              value={amount}
-              onChangeText={setAmount}
-              error={errors.amount}
-            />
+              {productsLoading && <ActivityIndicator color={colors.primary} style={{ marginBottom: 10 }} />}
 
-            {type === 'sale' && (
               <Input
-                label="Quantité"
-                placeholder="1"
+                label="Montant (FCFA)"
+                placeholder="Ex: 5000"
                 keyboardType="numeric"
-                value={quantity}
-                onChangeText={setQuantity}
+                value={amount}
+                onChangeText={setAmount}
+                error={errors.amount}
               />
-            )}
 
-            {type === 'sale' && (
+              {type === 'sale' && (
+                <Input
+                  label="Quantité"
+                  placeholder="1"
+                  keyboardType="numeric"
+                  value={quantity}
+                  onChangeText={setQuantity}
+                />
+              )}
+
+              {type === 'sale' && (
+                <Input
+                  label="Description"
+                  placeholder="Ex: Vente de 2 sacs de riz"
+                  value={description}
+                  onChangeText={setDescription}
+                  error={errors.description}
+                />
+              )}
+
               <Input
-                label="Description"
-                placeholder="Ex: Vente de 2 sacs de riz"
-                value={description}
-                onChangeText={setDescription}
-                error={errors.description}
+                label={type === 'sale' ? "Catégorie" : "Type de dépense"}
+                placeholder={type === 'sale' ? "Ex: Alimentation" : "Ex: Loyer, Transport, Facture..."}
+                value={category}
+                onChangeText={setCategory}
+                error={errors.category}
               />
-            )}
 
-            <Input
-              label={type === 'sale' ? "Catégorie" : "Type de dépense"}
-              placeholder={type === 'sale' ? "Ex: Alimentation" : "Ex: Loyer, Transport, Facture..."}
-              value={category}
-              onChangeText={setCategory}
-              error={errors.category}
-            />
-
-            <Button
-              title="Enregistrer"
-              type={type === 'sale' ? 'secondary' : 'danger'}
-              onPress={handleSave}
-              loading={loading}
-              style={styles.submitBtn}
-            />
+              <Button
+                title="Enregistrer"
+                type={type === 'sale' ? 'secondary' : 'danger'}
+                onPress={handleSave}
+                loading={loading}
+                style={styles.submitBtn}
+              />
+            </ScrollView>
           </KeyboardAvoidingView>
         </View>
       </TouchableWithoutFeedback>

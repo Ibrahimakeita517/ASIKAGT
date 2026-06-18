@@ -12,8 +12,42 @@ import { useTheme } from '../models/ThemeContext';
 const Stack = createStackNavigator();
 
 export const AppNavigator = () => {
-  const { user, isLoading, isAdmin } = useAuth();
+  const { user, isLoading, isAdmin, signOut } = useAuth() as any;
   const { colors } = useTheme();
+  const [timedOut, setTimedOut] = React.useState(false);
+
+  // Sécurité anti-blocage : si après 7 secondes on charge toujours sans utilisateur
+  React.useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isLoading && !user) {
+      timer = setTimeout(() => {
+        console.warn("AppNavigator: Temps de chargement trop long, déblocage forcé.");
+        setTimedOut(true);
+      }, 7000);
+    }
+    return () => clearTimeout(timer);
+  }, [isLoading, user]);
+
+  // Si on est bloqué trop longtemps, on propose de se déconnecter ou de réessayer
+  if (timedOut && isLoading && !user) {
+    return (
+      <View style={[styles.centered, { backgroundColor: colors.background, padding: 20 }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ color: colors.text, marginTop: 20, textAlign: 'center' }}>
+          Le chargement de votre profil prend plus de temps que prévu...
+        </Text>
+        <TouchableOpacity
+          onPress={() => {
+            setTimedOut(false);
+            if (signOut) signOut();
+          }}
+          style={{ marginTop: 20, padding: 15, backgroundColor: colors.primary, borderRadius: 10 }}
+        >
+          <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Retour à la connexion</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   // On ne bloque l'écran que SI on charge ET qu'on n'a pas encore d'utilisateur
   if (isLoading && !user) {

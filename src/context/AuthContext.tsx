@@ -23,13 +23,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
-    // 1. Vérification rapide de la session
     const checkUser = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
+          // Création profil temporaire immédiat pour ne pas bloquer l'UI
+          const tempUser: User = createDefaultUser(session.user.id, session.user.email || "");
+          setUser(tempUser);
+
+          // Tentative de récupération du vrai profil en arrière-plan
           const profile = await authService.findUserById(session.user.id);
-          setUser(profile);
+          if (profile) setUser(profile);
         }
       } catch (e) {
         console.log("Erreur init auth:", e);
@@ -40,19 +44,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     checkUser();
 
-    // 2. Écouter les changements d'état
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        const profile = await authService.findUserById(session.user.id);
-        setUser(profile);
+        const tempUser: User = createDefaultUser(session.user.id, session.user.email || "");
+        setUser(tempUser);
+        setIsLoading(false);
+
+        authService.findUserById(session.user.id).then(profile => {
+          if (profile) setUser(profile);
+        });
       } else {
         setUser(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
-    // 3. Sécurité : On débloque après 3s max
-    const timer = setTimeout(() => setIsLoading(false), 3000);
+    const timer = setTimeout(() => setIsLoading(false), 5000);
 
     return () => {
       subscription.unsubscribe();
@@ -60,17 +67,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  const createDefaultUser = (id: string, email: string): User => ({
+    id,
+    firstName: "Utilisateur",
+    lastName: "ASIKA",
+    email: email,
+    password: '',
+    role: 'merchant',
+    status: 'active',
+    subscriptionExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    debt: 0,
+    createdAt: new Date().toISOString(),
+    messages: [],
+    phone: '',
+  });
+
   const signIn = async (email: string, password: string) => {
     setIsLoading(true);
     try {
+      const cleanEmail = email.toLowerCase().trim();
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.toLowerCase().trim(),
+        email: cleanEmail,
         password
       });
+
       if (error) throw error;
+
       if (data.user) {
-        const profile = await authService.findUserById(data.user.id);
-        setUser(profile);
+        const loggedUser = createDefaultUser(data.user.id, data.user.email || cleanEmail);
+        setUser(loggedUser);
+        setIsLoading(false);
+
+        // On essaie de charger/sauvegarder en silence
+        authService.findUserById(data.user.id).then(profile => {
+          if (profile) setUser(profile);
+          else authService.saveUser(loggedUser).catch(() => {});
+        });
       }
     } finally {
       setIsLoading(false);
@@ -85,17 +117,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw error;
       if (data.user) {
         const newUser: User = {
-          id: data.user.id,
+          ...createDefaultUser(data.user.id, cleanEmail),
           firstName: firstName.trim(),
           lastName: lastName.trim(),
-          email: cleanEmail,
-          password: '',
-          role: 'merchant',
-          status: 'active',
-          subscriptionExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          debt: 0,
-          createdAt: new Date().toISOString(),
-          messages: [],
           phone: phone.trim(),
         };
         await authService.saveUser(newUser);
@@ -107,8 +131,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
+    setIsLoading(true);
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const updateProfile = async (firstName: string, lastName: string, phone: string, shopName?: string, businessType?: string) => {
