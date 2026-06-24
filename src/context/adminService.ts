@@ -26,11 +26,12 @@ export const adminService = {
         .order('sent_at', { ascending: false });
 
       if (error) {
-        console.log("Note: Table messages non accessible (Admin)");
+        console.log("Erreur récupération messages Admin:", error);
         return [];
       }
       return (data || []).map(mapSupabaseMessageToAppMessage);
     } catch (e) {
+      console.log("Exception récupération messages Admin:", e);
       return [];
     }
   }

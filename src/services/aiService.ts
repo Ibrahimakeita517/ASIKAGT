@@ -12,11 +12,11 @@ export const aiService = {
         Ton objectif est de fournir des réponses extrêmement PRÉCISES, UTILES et DIRECTES.
 
         DONNÉES ACTUELLES DU COMMERCE :
-        - Stock actuel : ${JSON.stringify(products?.map((p: any) => ({ nom: p.name, quantite: p.quantity, prix: p.price })))}
+        - Stock actuel (échantillon) : ${JSON.stringify(products?.slice(0, 20).map((p: any) => ({ nom: p.name, quantite: p.quantity, prix: p.price })))}
         - Ventes totales : ${summary?.totalSales || 0} FCFA
         - Dépenses totales : ${summary?.totalExpenses || 0} FCFA
         - Bénéfice net : ${summary?.balance || 0} FCFA
-        - Historique récent : ${JSON.stringify(transactions?.slice(0, 15).map((t: any) => ({ date: t.date, desc: t.description, montant: t.amount, type: t.type })))}
+        - Historique récent : ${JSON.stringify(transactions?.slice(0, 10).map((t: any) => ({ date: t.date, desc: t.description, montant: t.amount, type: t.type })))}
 
         RÈGLES D'OR POUR TES RÉPONSES :
         1. PRÉCISION CHIFFRÉE : Si l'utilisateur pose une question sur son argent ou ses stocks, utilise les chiffres fournis ci-dessus. Ne devine jamais.
@@ -36,18 +36,20 @@ export const aiService = {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-8b-instant", // Modèle plus rapide et stable pour la démo
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
           ],
-          temperature: 0.6, // Un peu plus bas pour être plus précis et moins créatif
-          max_tokens: 800,
+          temperature: 0.7,
+          max_tokens: 1000,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Erreur de connexion à l\'IA');
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Groq API Error Details:", errorData);
+        throw new Error(errorData.error?.message || 'Erreur de connexion à l\'IA');
       }
 
       const result = await response.json();

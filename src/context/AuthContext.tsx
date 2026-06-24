@@ -27,17 +27,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          // Création profil temporaire immédiat pour ne pas bloquer l'UI
-          const tempUser: User = createDefaultUser(session.user.id, session.user.email || "");
+          // 1. On met d'abord un profil par défaut pour débloquer l'UI immédiatement
+          const tempUser = createDefaultUser(session.user.id, session.user.email || "");
           setUser(tempUser);
+          setIsLoading(false); // On débloque l'écran tout de suite
 
-          // Tentative de récupération du vrai profil en arrière-plan
-          const profile = await authService.findUserById(session.user.id);
-          if (profile) setUser(profile);
+          // 2. On charge le vrai profil (avec le rôle admin) en arrière-plan
+          authService.findUserById(session.user.id).then(profile => {
+            if (profile) setUser(profile);
+          });
+        } else {
+          setIsLoading(false);
         }
       } catch (e) {
         console.log("Erreur init auth:", e);
-      } finally {
         setIsLoading(false);
       }
     };
@@ -46,10 +49,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        const tempUser: User = createDefaultUser(session.user.id, session.user.email || "");
+        // Connexion immédiate
+        const tempUser = createDefaultUser(session.user.id, session.user.email || "");
         setUser(tempUser);
         setIsLoading(false);
 
+        // Mise à jour du rôle en arrière-plan
         authService.findUserById(session.user.id).then(profile => {
           if (profile) setUser(profile);
         });
@@ -94,18 +99,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw error;
 
       if (data.user) {
+        // On crée un profil temporaire pour entrer tout de suite
         const loggedUser = createDefaultUser(data.user.id, data.user.email || cleanEmail);
         setUser(loggedUser);
         setIsLoading(false);
 
-        // On essaie de charger/sauvegarder en silence
+        // On va chercher le vrai rôle (Admin) en arrière-plan
         authService.findUserById(data.user.id).then(profile => {
-          if (profile) setUser(profile);
-          else authService.saveUser(loggedUser).catch(() => {});
+          if (profile) {
+            setUser(profile);
+          } else {
+            authService.saveUser(loggedUser).catch(() => {});
+          }
         });
       }
-    } finally {
+    } catch (e) {
       setIsLoading(false);
+      throw e;
     }
   };
 

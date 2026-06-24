@@ -47,6 +47,26 @@ export const notificationService = {
     } catch (e) {}
   },
 
+  // Récupérer les messages destinés à l'admin
+  async getAdminMessages(): Promise<Message[]> {
+    try {
+      // On cherche tout ce qui est adressé à 'admin' ou qui est de type support/reclamation
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .or('receiver_id.eq.admin,type.eq.support,type.eq.reclamation')
+        .order('sent_at', { ascending: false });
+
+      if (error) {
+        console.log("Erreur getAdminMessages:", error);
+        return [];
+      }
+      return (data || []).map(mapSupabaseMessageToAppMessage);
+    } catch (e) {
+      return [];
+    }
+  },
+
   async sendMessage(senderId: string, receiverId: string | 'all' | 'admin', content: string, type: 'support' | 'info' | 'reclamation' = 'info'): Promise<boolean> {
     try {
       const { error } = await supabase.from('messages').insert([{

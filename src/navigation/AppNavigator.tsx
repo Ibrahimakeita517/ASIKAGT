@@ -6,7 +6,7 @@ import { AuthNavigator } from './AuthNavigator';
 import { MainNavigator } from './MainNavigator';
 import { AdminNavigator } from './AdminNavigator';
 import BlockedScreen from '../screens/blocked/BlockedScreen';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { useTheme } from '../models/ThemeContext';
 
 const Stack = createStackNavigator();

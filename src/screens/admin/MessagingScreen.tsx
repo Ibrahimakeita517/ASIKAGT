@@ -40,12 +40,19 @@ const MessagingScreen = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [allUsers, messages] = await Promise.all([
-        authService.getAllUsers(),
-        notificationService.getAdminMessages()
-      ]);
-      setUsers(allUsers.filter(u => u.role === 'merchant'));
-      setIncomingMessages(messages);
+      // On charge les messages en priorité
+      const messages = await notificationService.getAdminMessages();
+      setIncomingMessages(messages || []);
+
+      // Puis on tente de charger les utilisateurs, mais sans bloquer si ça échoue
+      try {
+        const allUsers = await authService.getAllUsers();
+        if (allUsers) {
+          setUsers(allUsers.filter(u => u.role === 'merchant'));
+        }
+      } catch (e) {
+        console.log("Note: Impossible de charger la liste complète des utilisateurs");
+      }
     } catch (error) {
       console.error("Erreur lors de la récupération des données:", error);
     }
@@ -104,26 +111,32 @@ const MessagingScreen = () => {
   const renderMessageItem = ({ item }: { item: Message }) => {
     const sender = users.find(u => u.id === item.senderId);
     const unreadStyle = !item.isRead ? { borderLeftWidth: 4, borderLeftColor: colors.primary } : {};
+
     return (
-      <Card style={{ ...styles.msgCard, ...unreadStyle }}>
+      <Card key={item.id} style={{ ...styles.msgCard, ...unreadStyle }}>
         <View style={styles.msgHeader}>
           <View style={styles.senderInfo}>
             <Text style={[styles.senderName, { color: colors.text }]}>
-              {sender ? `${sender.firstName} ${sender.lastName}` : 'Utilisateur inconnu'}
+              {sender ? `${sender.firstName} ${sender.lastName}` : 'Chargement nom...'}
             </Text>
             <View style={[styles.typeBadge, { backgroundColor: colors.primary + '15' }]}>
               <Text style={[styles.typeText, { color: colors.primary }]}>
-                {item.type === 'reclamation' ? 'Réclamation' : item.type === 'support' ? 'Support' : 'Amélioration'}
+                {item.type || 'Message'}
               </Text>
             </View>
           </View>
-          <Text style={[styles.msgDate, { color: colors.textMuted }]}>{formatRelativeDate(item.sentAt)}</Text>
+          <Text style={[styles.msgDate, { color: colors.textMuted }]}>
+            {item.sentAt ? formatRelativeDate(item.sentAt) : ''}
+          </Text>
         </View>
-        <Text style={[styles.msgContent, { color: colors.text }]} numberOfLines={3}>{item.content}</Text>
-        <TouchableOpacity style={styles.replyBtn} onPress={() => handleReply(item)}>
-          <Ionicons name="arrow-undo" size={16} color={colors.primary} />
-          <Text style={[styles.replyText, { color: colors.primary }]}>Répondre</Text>
-        </TouchableOpacity>
+        <Text style={[styles.msgContent, { color: colors.text }]}>{item.content}</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ fontSize: 10, color: colors.textMuted }}>ID: {item.senderId.substring(0,8)}...</Text>
+          <TouchableOpacity style={styles.replyBtn} onPress={() => handleReply(item)}>
+            <Ionicons name="arrow-undo" size={16} color={colors.primary} />
+            <Text style={[styles.replyText, { color: colors.primary }]}>Répondre</Text>
+          </TouchableOpacity>
+        </View>
       </Card>
     );
   };

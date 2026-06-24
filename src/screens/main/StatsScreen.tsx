@@ -114,8 +114,8 @@ const StatsScreen = () => {
       };
 
       setMessages(prev => [...prev, aiMsg]);
-    } catch (error) {
-      Alert.alert("Erreur", "L'assistant ASIKA AI est indisponible. Vérifiez votre connexion.");
+    } catch (error: any) {
+      Alert.alert("Erreur", `L'assistant ASIKA AI rencontre une difficulté : ${error?.message || 'Indisponible'}. Vérifiez votre connexion.`);
     } finally {
       setAiLoading(false);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
