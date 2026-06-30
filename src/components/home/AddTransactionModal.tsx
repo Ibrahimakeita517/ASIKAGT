@@ -100,16 +100,25 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
     setLoading(true);
     try {
+      // 1. Enregistrer la transaction
       await transactionService.addTransaction({
         userId: user.id,
         type,
         amount: Number(amount) * Number(quantity || 1),
-        // Si c'est une dépense, on utilise la catégorie comme description
         description: type === 'sale' ? description.trim() : category.trim(),
         category: category.trim(),
         date: new Date().toISOString(),
       });
       
+      // 2. Si c'est une vente de produit en stock, déduire la quantité
+      if (type === 'sale' && selectedProductId) {
+        const product = products.find(p => p.id === selectedProductId);
+        if (product) {
+          const newQty = product.quantity - Number(quantity || 1);
+          await stockService.updateQuantity(selectedProductId, newQty > 0 ? newQty : 0);
+        }
+      }
+
       // Réinitialisation et fermeture
       setAmount('');
       setDescription('');

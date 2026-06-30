@@ -47,6 +47,25 @@ export const notificationService = {
     } catch (e) {}
   },
 
+  // Compter les messages non lus pour l'admin
+  async getAdminUnreadCount(): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_read', false)
+        .eq('receiver_id', 'admin');
+
+      if (error) {
+        console.log("Erreur getAdminUnreadCount:", error);
+        return 0;
+      }
+      return count || 0;
+    } catch (e) {
+      return 0;
+    }
+  },
+
   // Récupérer les messages destinés à l'admin
   async getAdminMessages(): Promise<Message[]> {
     try {

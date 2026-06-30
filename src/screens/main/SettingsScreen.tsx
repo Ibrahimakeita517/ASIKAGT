@@ -27,12 +27,19 @@ const SettingsScreen = () => {
   const [firstName, setFirstName] = useState(user?.firstName || '');
   const [lastName, setLastName] = useState(user?.lastName || '');
   const [phone, setPhone] = useState(user?.phone || '');
-  const [shopName, setShopName] = useState(user?.shopName || '');
-  const [businessType, setBusinessType] = useState(user?.businessType || '');
   const [newPassword, setNewPassword] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   
+  // Mettre à jour les champs quand l'utilisateur est chargé
+  React.useEffect(() => {
+    if (user) {
+      setFirstName(user.firstName || '');
+      setLastName(user.lastName || '');
+      setPhone(user.phone || '');
+    }
+  }, [user]);
+
   // État pour la modale "À propos"
   const [aboutVisible, setAboutVisible] = useState(false);
 
@@ -45,9 +52,7 @@ const SettingsScreen = () => {
     if (
       firstName === user?.firstName &&
       lastName === user?.lastName &&
-      phone === user?.phone &&
-      shopName === user?.shopName &&
-      businessType === user?.businessType
+      phone === user?.phone
     ) {
       Alert.alert('Info', 'Aucune modification détectée.');
       return;
@@ -55,7 +60,7 @@ const SettingsScreen = () => {
 
     setIsUpdatingProfile(true);
     try {
-      await updateProfile(firstName, lastName, phone, shopName, businessType);
+      await updateProfile(firstName, lastName, phone);
       Alert.alert('Succès', 'Profil mis à jour avec succès.');
     } catch (e) {
       Alert.alert('Erreur', 'Impossible de mettre à jour le profil.');
@@ -122,26 +127,6 @@ const SettingsScreen = () => {
           </View>
         </View>
 
-        {/* Section Commerce */}
-        <SectionTitle title="Mon Commerce" />
-        <Card>
-          <Input
-            label="Nom du commerce"
-            value={shopName}
-            onChangeText={setShopName}
-            placeholder="Ex: Boutique Diallo & Frères"
-          />
-          <Input
-            label="Type d'activité"
-            value={businessType}
-            onChangeText={setBusinessType}
-            placeholder="Ex: Prêt-à-porter, Alimentation, etc."
-          />
-          <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 15, paddingHorizontal: 5 }}>
-            Ces informations permettent à ASIKA AI de vous donner des conseils personnalisés.
-          </Text>
-        </Card>
-
         {/* Section Profil */}
         <SectionTitle title="Profil" />
         <Card>
@@ -181,7 +166,7 @@ const SettingsScreen = () => {
             <Ionicons name="call" size={24} color={colors.primary} />
             <Text style={[styles.supportText, { color: colors.text }]}>Appeler l'assistance</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.supportItem} onPress={() => Linking.openURL('https://asika.app')}>
+          <TouchableOpacity style={styles.supportItem} onPress={() => Linking.openURL('https://ibrahimakeita517.github.io/ASIKAGT-site-officiel/')}>
             <Ionicons name="globe-outline" size={24} color={colors.secondary} />
             <Text style={[styles.supportText, { color: colors.text }]}>Visiter notre site web</Text>
           </TouchableOpacity>
@@ -207,8 +192,8 @@ const SettingsScreen = () => {
               ASIKA est votre partenaire quotidien pour la gestion de votre commerce. 
               Digitalisez vos cahiers et suivez vos profits en temps réel.
             </Text>
-            <TouchableOpacity onPress={() => Linking.openURL('https://asika.app')} style={{ marginBottom: 20 }}>
-              <Text style={{ color: colors.primary, fontWeight: 'bold', fontSize: 16 }}>www.asika.app</Text>
+            <TouchableOpacity onPress={() => Linking.openURL('https://ibrahimakeita517.github.io/ASIKAGT-site-officiel/')} style={{ marginBottom: 20 }}>
+              <Text style={{ color: colors.primary, fontWeight: 'bold', fontSize: 16 }}>Visiter le site officiel</Text>
             </TouchableOpacity>
             <Text style={[styles.modalDev, { color: colors.textMuted }]}>Développé avec ❤️ par l'équipe ASIKA</Text>
             <Button title="Fermer" type="outline" onPress={() => setAboutVisible(false)} style={{ width: '100%' }} />

@@ -97,10 +97,13 @@ export const stockService = {
         .insert(mapAppStockEntryToSupabaseInsert(entry));
 
       if (error) {
-        console.warn("La table stock_entries n'existe probablement pas encore:", error.message);
+        // On ne loggue en warning que si ce n'est pas une erreur RLS connue pour ne pas polluer la console
+        if (error.code !== '42P01') { // 42P01 = table manquante
+          console.log("Note: L'historique des stocks n'a pas pu être enregistré (Vérifiez RLS sur Supabase)");
+        }
       }
     } catch (e) {
-      console.warn("Erreur lors du logging (optionnel):", e);
+      // Silencieux pour l'utilisateur final
     }
   },
 

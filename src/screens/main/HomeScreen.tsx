@@ -90,7 +90,9 @@ const HomeScreen = () => {
       >
         <View style={styles.header}>
           <View>
-            <Text style={[styles.greeting, { color: colors.text }]}>Bonjour, {user?.firstName} 👋</Text>
+            <Text style={[styles.greeting, { color: colors.text }]}>
+              Bonjour, {user?.firstName || 'Marchand'} 👋
+            </Text>
             <Text style={[styles.date, { color: colors.textMuted }]}>{formatFullDate(new Date().toISOString())}</Text>
           </View>
           <TouchableOpacity

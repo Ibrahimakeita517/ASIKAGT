@@ -56,14 +56,14 @@ export const MainNavigator = () => {
 
           if (route.name === 'Historique') iconName = focused ? 'time' : 'time-outline';
           else if (route.name === 'Stock') iconName = focused ? 'cube' : 'cube-outline';
-          else if (route.name === 'IA') iconName = focused ? 'sparkles' : 'sparkles-outline';
+          else if (route.name === 'Analyses') iconName = focused ? 'bar-chart' : 'bar-chart-outline';
           else if (route.name === 'Paramètres') iconName = focused ? 'settings' : 'settings-outline';
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
       })}
     >
-      <Tab.Screen name="IA" component={StatsScreen} options={{ tabBarLabel: 'ASIKA AI' }} />
+      <Tab.Screen name="Analyses" component={StatsScreen} options={{ tabBarLabel: 'Analyses' }} />
       <Tab.Screen name="Stock" component={StockScreen} />
       <Tab.Screen name="Accueil" component={HomeScreen} options={{ tabBarLabel: '' }} />
       <Tab.Screen name="Historique" component={HistoryScreen} />

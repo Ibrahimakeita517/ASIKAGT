@@ -49,15 +49,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        // Connexion immédiate
-        const tempUser = createDefaultUser(session.user.id, session.user.email || "");
-        setUser(tempUser);
+        // Si on a déjà un utilisateur avec un prénom, on ne remet pas le profil vide
+        setUser(prev => {
+          if (prev && prev.id === session.user.id && prev.firstName) return prev;
+          return createDefaultUser(session.user.id, session.user.email || "");
+        });
         setIsLoading(false);
 
-        // Mise à jour du rôle en arrière-plan
-        authService.findUserById(session.user.id).then(profile => {
-          if (profile) setUser(profile);
-        });
+        // On charge le vrai profil
+        const profile = await authService.findUserById(session.user.id);
+        if (profile) {
+          setUser(prev => {
+            // On ne remplace que si le profil chargé est "plus complet" ou si on n'avait rien
+            if (prev && prev.firstName && !profile.firstName) return prev;
+            return profile;
+          });
+        }
       } else {
         setUser(null);
         setIsLoading(false);
@@ -74,8 +81,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const createDefaultUser = (id: string, email: string): User => ({
     id,
-    firstName: "Utilisateur",
-    lastName: "ASIKA",
+    firstName: "",
+    lastName: "",
     email: email,
     password: '',
     role: 'merchant',
@@ -99,23 +106,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw error;
 
       if (data.user) {
-        // On crée un profil temporaire pour entrer tout de suite
-        const loggedUser = createDefaultUser(data.user.id, data.user.email || cleanEmail);
-        setUser(loggedUser);
-        setIsLoading(false);
-
-        // On va chercher le vrai rôle (Admin) en arrière-plan
-        authService.findUserById(data.user.id).then(profile => {
-          if (profile) {
-            setUser(profile);
-          } else {
-            authService.saveUser(loggedUser).catch(() => {});
-          }
-        });
+        // On essaye de charger le vrai profil immédiatement
+        const profile = await authService.findUserById(data.user.id);
+        if (profile) {
+          setUser(profile);
+        } else {
+          // Si pas de profil, on met le défaut mais sans les noms bidons
+          setUser(createDefaultUser(data.user.id, data.user.email || cleanEmail));
+        }
       }
     } catch (e) {
-      setIsLoading(false);
       throw e;
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -123,8 +126,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const cleanEmail = email.toLowerCase().trim();
-      const { data, error } = await supabase.auth.signUp({ email: cleanEmail, password });
+      // On passe les infos à Supabase Auth également pour que le trigger SQL puisse les voir
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          data: {
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            phone: phone.trim()
+          }
+        }
+      });
+
       if (error) throw error;
+
       if (data.user) {
         const newUser: User = {
           ...createDefaultUser(data.user.id, cleanEmail),
@@ -132,9 +148,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           lastName: lastName.trim(),
           phone: phone.trim(),
         };
-        await authService.saveUser(newUser);
+
+        // 1. On met à jour l'état local IMMEDIATEMENT
         setUser(newUser);
+
+        // 2. On enregistre dans la table public.users (écrase les valeurs par défaut du trigger)
+        await authService.saveUser(newUser);
       }
+    } catch (e) {
+      console.error("Erreur SignUp:", e);
+      throw e;
     } finally {
       setIsLoading(false);
     }

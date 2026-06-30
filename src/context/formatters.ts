@@ -1,4 +1,5 @@
 export const formatCurrency = (amount: number): string => {
+  if (amount === undefined || amount === null || isNaN(amount)) return "0 FCFA";
   return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " FCFA";
 };
 

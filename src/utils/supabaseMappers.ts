@@ -7,7 +7,7 @@ export const mapSupabaseUserToAppUser = (supabaseUser: any): User => {
     firstName: supabaseUser.first_name,
     lastName: supabaseUser.last_name,
     email: supabaseUser.email,
-    password: supabaseUser.password, // Attention: en production, ne pas stocker le mot de passe en clair
+    password: '', // Le mot de passe n'est pas stocké dans la table public
     role: supabaseUser.role,
     status: supabaseUser.status,
     subscriptionExpiry: supabaseUser.subscription_expiry,
@@ -25,7 +25,6 @@ export const mapAppUserToSupabaseInsert = (appUser: User) => {
     first_name: appUser.firstName,
     last_name: appUser.lastName,
     email: appUser.email,
-    password: appUser.password,
     role: appUser.role,
     status: appUser.status,
     subscription_expiry: appUser.subscriptionExpiry,
@@ -79,20 +78,13 @@ export const mapSupabaseMessageToAppMessage = (m: any): Message => {
 
 // Mapper pour convertir notre type Product (camelCase) vers les données Supabase (snake_case)
 export const mapAppProductToSupabaseInsert = (appProduct: any) => {
-  // On n'envoie que les colonnes de base qui existent SÛREMENT dans ton Supabase
-  const data: any = {
-    user_id: appProduct.userId,
-    name: appProduct.name,
-    quantity: appProduct.quantity,
-    price: appProduct.price,
-    category: appProduct.category || 'Général',
-  };
-
-  // NOTE: On commente cette ligne car la colonne purchase_price manque probablement dans Supabase
-  // if (appProduct.purchasePrice !== undefined) {
-  //   data.purchase_price = appProduct.purchasePrice;
-  // }
-
+  const data: any = {};
+  if (appProduct.userId) data.user_id = appProduct.userId;
+  if (appProduct.name) data.name = appProduct.name;
+  if (appProduct.quantity !== undefined) data.quantity = appProduct.quantity;
+  if (appProduct.price !== undefined) data.price = appProduct.price;
+  if (appProduct.purchasePrice !== undefined) data.purchase_price = appProduct.purchasePrice;
+  if (appProduct.category) data.category = appProduct.category;
   return data;
 };
 
