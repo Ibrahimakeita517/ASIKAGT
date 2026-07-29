@@ -7,7 +7,8 @@ import {
   Platform, 
   ScrollView, 
   TouchableOpacity,
-  Alert
+  Alert,
+  Image
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../models/ThemeContext';
@@ -68,10 +69,11 @@ const LoginScreen = () => {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
-            <Ionicons name="storefront" size={40} color="#FFF" />
-          </View>
-          <Text style={[styles.title, { color: colors.text }]}>ASIKA</Text>
+          <Image
+            source={require('../../../assets/icon.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <Text style={[styles.subtitle, { color: colors.textMuted }]}>
             {isLogin ? 'Gérez votre commerce en toute simplicité' : 'Créez votre compte marchand'}
           </Text>
@@ -85,14 +87,14 @@ const LoginScreen = () => {
                 value={firstName} 
                 onChangeText={setFirstName} 
                 error={errors.firstName}
-                placeholder="Jean"
+                placeholder="Sidiki"
               />
               <Input 
                 label="Nom" 
                 value={lastName} 
                 onChangeText={setLastName} 
                 error={errors.lastName}
-                placeholder="Dupont"
+                placeholder="Keita"
               />
               <Input 
                 label="Numéro de téléphone" 
@@ -149,7 +151,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 20, justifyContent: 'center', minHeight: '100%' },
   header: { alignItems: 'center', marginBottom: 30 },
-  logoContainer: { width: 80, height: 80, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
+  logo: { width: 120, height: 120, marginBottom: 15, borderRadius: 20 },
   title: { fontSize: 32, fontWeight: 'bold', marginBottom: 5 },
   subtitle: { fontSize: 16, textAlign: 'center' },
   formCard: {

@@ -24,8 +24,8 @@ const SettingsScreen = () => {
   const { mode, toggleTheme, colors } = useTheme();
 
   // États pour le profil
-  const [firstName, setFirstName] = useState(user?.firstName || '');
-  const [lastName, setLastName] = useState(user?.lastName || '');
+  const [firstName, setFirstName] = useState(user?.firstName || '[Sidiki]');
+  const [lastName, setLastName] = useState(user?.lastName || '[Keita]');
   const [phone, setPhone] = useState(user?.phone || '');
   const [newPassword, setNewPassword] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
@@ -34,8 +34,8 @@ const SettingsScreen = () => {
   // Mettre à jour les champs quand l'utilisateur est chargé
   React.useEffect(() => {
     if (user) {
-      setFirstName(user.firstName || '');
-      setLastName(user.lastName || '');
+      setFirstName(user.firstName || '[Sidiki]');
+      setLastName(user.lastName || '[Keita]');
       setPhone(user.phone || '');
     }
   }, [user]);

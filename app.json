@@ -23,7 +23,9 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1e3a8a"
       },
-      "package": "app.asika.merchant"
+      "package": "app.asika.merchant",
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "WAKE_LOCK"],
+      "usesCleartextTraffic": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
