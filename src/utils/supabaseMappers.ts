@@ -46,6 +46,30 @@ export const mapSupabaseTransactionToAppTransaction = (supabaseTransaction: any)
     category: supabaseTransaction.category,
     date: supabaseTransaction.date,
     createdAt: supabaseTransaction.created_at,
+    customerName: supabaseTransaction.customer_name,
+    customerPhone: supabaseTransaction.customer_phone,
+    totalAmount: supabaseTransaction.total_amount,
+    remainingAmount: supabaseTransaction.remaining_amount,
+    status: supabaseTransaction.status,
+  };
+};
+
+// Mapper pour convertir notre type Transaction (camelCase) vers les données Supabase (snake_case)
+export const mapAppTransactionToSupabaseInsert = (t: Transaction) => {
+  return {
+    id: t.id,
+    user_id: t.userId,
+    type: t.type,
+    amount: t.amount,
+    description: t.description,
+    category: t.category,
+    date: t.date,
+    created_at: t.createdAt,
+    customer_name: t.customerName,
+    customer_phone: t.customerPhone,
+    total_amount: t.totalAmount,
+    remaining_amount: t.remainingAmount,
+    status: t.status,
   };
 };
 

@@ -13,9 +13,11 @@ const HistoryScreen = () => {
   const { user } = useAuth();
   const { colors } = useTheme();
   
-  const [activeTab, setActiveTab] = useState<'all' | 'sale' | 'expense'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'sale' | 'expense' | 'debt'>('all');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [search, setSearch] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // États pour le filtrage temporel
   const [filterMode, setFilterMode] = useState<'all' | 'day' | 'month' | 'year'>('all');
@@ -24,43 +26,46 @@ const HistoryScreen = () => {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
 
   useEffect(() => {
-    const fetchTransactions = async () => {
-      if (!user) return;
-      const data = await transactionService.getTransactions(user.id);
-
-      let filtered = data;
-
-      // 1. Filtrage par type (Vente / Dépense)
-      if (activeTab !== 'all') {
-        filtered = filtered.filter(t => t.type === activeTab);
-      }
-
-      // 2. Filtrage par date
-      const d = selectedDate;
-      if (filterMode === 'day') {
-        filtered = filtered.filter(t => {
-          const tDate = new Date(t.date);
-          return tDate.getDate() === d.getDate() &&
-                 tDate.getMonth() === d.getMonth() &&
-                 tDate.getFullYear() === d.getFullYear();
-        });
-      } else if (filterMode === 'month') {
-        filtered = filtered.filter(t => {
-          const tDate = new Date(t.date);
-          return tDate.getMonth() === d.getMonth() &&
-                 tDate.getFullYear() === d.getFullYear();
-        });
-      } else if (filterMode === 'year') {
-        filtered = filtered.filter(t => {
-          const tDate = new Date(t.date);
-          return tDate.getFullYear() === d.getFullYear();
-        });
-      }
-
-      setTransactions(filtered);
-    };
     fetchTransactions();
   }, [user, activeTab, filterMode, selectedDate]);
+
+  const fetchTransactions = async () => {
+    if (!user) return;
+    const data = await transactionService.getTransactions(user.id);
+
+    let filtered = data;
+
+    // 1. Filtrage par type
+    if (activeTab === 'debt') {
+      filtered = filtered.filter(t => t.type === 'debt' && t.status !== 'paid');
+    } else if (activeTab !== 'all') {
+      filtered = filtered.filter(t => t.type === activeTab);
+    }
+
+    // 2. Filtrage par date
+    const d = selectedDate;
+    if (filterMode === 'day') {
+      filtered = filtered.filter(t => {
+        const tDate = new Date(t.date);
+        return tDate.getDate() === d.getDate() &&
+               tDate.getMonth() === d.getMonth() &&
+               tDate.getFullYear() === d.getFullYear();
+      });
+    } else if (filterMode === 'month') {
+      filtered = filtered.filter(t => {
+        const tDate = new Date(t.date);
+        return tDate.getMonth() === d.getMonth() &&
+               tDate.getFullYear() === d.getFullYear();
+      });
+    } else if (filterMode === 'year') {
+      filtered = filtered.filter(t => {
+        const tDate = new Date(t.date);
+        return tDate.getFullYear() === d.getFullYear();
+      });
+    }
+
+    setTransactions(filtered);
+  };
 
   const filteredTransactions = transactions.filter(t => 
     t.description.toLowerCase().includes(search.toLowerCase()) ||
@@ -71,28 +76,65 @@ const HistoryScreen = () => {
     t.type === 'sale' ? sum + t.amount : sum - t.amount, 0
   );
 
+  const handleAddPayment = async () => {
+    if (!selectedTransaction || !paymentAmount || isNaN(Number(paymentAmount))) return;
+
+    setLoading(true);
+    try {
+      await transactionService.updateDebt(selectedTransaction.id, Number(paymentAmount));
+      // Recharger les données
+      await fetchTransactions();
+      setSelectedTransaction(null);
+      setPaymentAmount('');
+    } catch (e) {
+      console.error("Erreur paiement dette:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderItem = ({ item }: { item: Transaction }) => {
     const isSale = item.type === 'sale';
+    const isDebt = item.type === 'debt';
+
+    let iconName: any = "arrow-up";
+    let iconColor = colors.secondary;
+
+    if (item.type === 'expense') {
+      iconName = "arrow-down";
+      iconColor = colors.danger;
+    } else if (isDebt) {
+      iconName = "hand-coin";
+      iconColor = colors.primary;
+    }
+
     return (
       <TouchableOpacity
         style={[styles.card, { backgroundColor: colors.surface }]}
         onPress={() => setSelectedTransaction(item)}
       >
-        <View style={[styles.iconContainer, { backgroundColor: isSale ? colors.secondary + '15' : colors.danger + '15' }]}>
+        <View style={[styles.iconContainer, { backgroundColor: iconColor + '15' }]}>
           <Ionicons
-            name={isSale ? "arrow-up" : "arrow-down"}
+            name={iconName}
             size={20}
-            color={isSale ? colors.secondary : colors.danger}
+            color={iconColor}
           />
         </View>
         <View style={styles.info}>
-          <Text style={[styles.description, { color: colors.text }]}>{item.description}</Text>
+          <Text style={[styles.description, { color: colors.text }]}>
+            {isDebt ? `Dette: ${item.customerName || 'Client'}` : item.description}
+          </Text>
           <Text style={[styles.category, { color: colors.textMuted }]}>{item.category}</Text>
         </View>
         <View style={styles.rightSide}>
-          <Text style={[styles.amount, { color: isSale ? colors.secondary : colors.danger }]}>
-            {isSale ? '+' : '-'} {formatCurrency(item.amount)}
+          <Text style={[styles.amount, { color: iconColor }]}>
+            {item.type === 'expense' ? '-' : '+'} {formatCurrency(item.amount)}
           </Text>
+          {isDebt && item.remainingAmount > 0 && (
+            <Text style={[styles.debtRemaining, { color: colors.danger }]}>
+              Reste: {formatCurrency(item.remainingAmount)}
+            </Text>
+          )}
           <Text style={[styles.date, { color: colors.textMuted }]}>{formatRelativeDate(item.date)}</Text>
         </View>
       </TouchableOpacity>
@@ -162,6 +204,12 @@ const HistoryScreen = () => {
           style={[styles.tab, activeTab === 'expense' && { borderBottomColor: colors.danger, borderBottomWidth: 3 }]}
         >
           <Text style={[styles.tabText, { color: activeTab === 'expense' ? colors.danger : colors.textMuted }]}>Dépenses</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setActiveTab('debt')}
+          style={[styles.tab, activeTab === 'debt' && { borderBottomColor: colors.primary, borderBottomWidth: 3 }]}
+        >
+          <Text style={[styles.tabText, { color: activeTab === 'debt' ? colors.primary : colors.textMuted }]}>Dettes</Text>
         </TouchableOpacity>
       </View>
 
@@ -243,6 +291,44 @@ const HistoryScreen = () => {
                       })}
                     </Text>
                   </View>
+
+                  {selectedTransaction.type === 'debt' && (
+                    <>
+                      <View style={styles.divider} />
+                      <View style={styles.detailRow}>
+                        <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Client</Text>
+                        <Text style={[styles.detailValue, { color: colors.text }]}>{selectedTransaction.customerName}</Text>
+                        <Text style={[styles.detailSub, { color: colors.textMuted }]}>{selectedTransaction.customerPhone}</Text>
+                      </View>
+                      <View style={styles.divider} />
+                      <View style={styles.detailRow}>
+                        <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Total à payer</Text>
+                        <Text style={[styles.detailValue, { color: colors.text }]}>{formatCurrency(selectedTransaction.totalAmount || 0)}</Text>
+                      </View>
+                      <View style={styles.detailRow}>
+                        <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Reste à payer</Text>
+                        <Text style={[styles.detailValue, { color: colors.danger, fontSize: 20 }]}>{formatCurrency(selectedTransaction.remainingAmount || 0)}</Text>
+                      </View>
+
+                      {selectedTransaction.remainingAmount > 0 && (
+                        <View style={styles.paymentSection}>
+                          <TextInput
+                            style={[styles.paymentInput, { color: colors.text, borderColor: colors.border }]}
+                            placeholder="Montant du versement"
+                            placeholderTextColor={colors.textMuted}
+                            keyboardType="numeric"
+                            value={paymentAmount}
+                            onChangeText={setPaymentAmount}
+                          />
+                          <Button
+                            title="Ajouter Versement"
+                            onPress={handleAddPayment}
+                            loading={loading}
+                          />
+                        </View>
+                      )}
+                    </>
+                  )}
                 </Card>
                 <Button title="Fermer" onPress={() => setSelectedTransaction(null)} style={{ marginTop: 20 }} />
               </ScrollView>
@@ -279,6 +365,7 @@ const styles = StyleSheet.create({
   category: { fontSize: 13, marginTop: 2 },
   rightSide: { alignItems: 'flex-end' },
   amount: { fontSize: 16, fontWeight: 'bold' },
+  debtRemaining: { fontSize: 11, fontWeight: '600' },
   date: { fontSize: 11, marginTop: 4 },
   empty: { textAlign: 'center', marginTop: 50 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
@@ -292,7 +379,10 @@ const styles = StyleSheet.create({
   detailRow: { marginBottom: 10 },
   detailLabel: { fontSize: 14, marginBottom: 5 },
   detailValue: { fontSize: 17, fontWeight: '600' },
-  divider: { height: 1, backgroundColor: '#eee', marginBottom: 15 }
+  detailSub: { fontSize: 14 },
+  divider: { height: 1, backgroundColor: '#eee', marginBottom: 15 },
+  paymentSection: { marginTop: 20, borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 20 },
+  paymentInput: { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 10, fontSize: 16 },
 });
 
 export default HistoryScreen;

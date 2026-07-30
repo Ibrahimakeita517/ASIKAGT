@@ -34,17 +34,30 @@ export interface User {
 }
 
 // Transaction (dépense ou vente)
-export type TransactionType = 'sale' | 'expense';
+export type TransactionType = 'sale' | 'expense' | 'debt';
 
 export interface Transaction {
   id: string;
   userId: string;
   type: TransactionType;
-  amount: number;
+  amount: number; // Montant total pour une vente/dépense, ou montant payé pour une dette initiale
   description: string;
   category: string;
   date: string; // ISO date string
   createdAt: string;
+  // Champs pour les dettes
+  customerName?: string;
+  customerPhone?: string;
+  totalAmount?: number;
+  remainingAmount?: number;
+  status?: 'pending' | 'partially_paid' | 'paid';
+}
+
+export interface DebtPayment {
+  id: string;
+  transactionId: string;
+  amount: number;
+  date: string;
 }
 
 // Résumé financier

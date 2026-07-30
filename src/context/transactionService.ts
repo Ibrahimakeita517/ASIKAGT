@@ -32,11 +32,42 @@ export const transactionService = {
         category: newTransaction.category,
         date: newTransaction.date,
         created_at: newTransaction.createdAt,
+        customer_name: newTransaction.customerName,
+        customer_phone: newTransaction.customerPhone,
+        total_amount: newTransaction.totalAmount,
+        remaining_amount: newTransaction.remainingAmount,
+        status: newTransaction.status,
       })
       .select()
       .single();
     if (error) throw error;
     return mapSupabaseTransactionToAppTransaction(data);
+  },
+
+  updateDebt: async (transactionId: string, paidAmount: number): Promise<void> => {
+    // 1. Récupérer la transaction actuelle
+    const { data: current, error: getError } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', transactionId)
+      .single();
+
+    if (getError || !current) throw new Error("Dette introuvable");
+
+    const newRemaining = current.remaining_amount - paidAmount;
+    const newStatus = newRemaining <= 0 ? 'paid' : 'partially_paid';
+
+    // 2. Mettre à jour dans Supabase
+    const { error: updateError } = await supabase
+      .from('transactions')
+      .update({
+        remaining_amount: newRemaining > 0 ? newRemaining : 0,
+        amount: current.amount + paidAmount, // Le montant "encaissé" augmente
+        status: newStatus
+      })
+      .eq('id', transactionId);
+
+    if (updateError) throw updateError;
   },
 
   deleteTransaction: async (transactionId: string): Promise<void> => {
@@ -51,8 +82,8 @@ export const transactionService = {
     let totalExpenses = 0;
 
     transactions.forEach(t => {
-      if (t.type === 'sale') totalSales += t.amount;
-      else totalExpenses += t.amount;
+      if (t.type === 'sale' || t.type === 'debt') totalSales += t.amount;
+      else if (t.type === 'expense') totalExpenses += t.amount;
     });
 
     const balance = totalSales - totalExpenses;
@@ -81,8 +112,8 @@ export const transactionService = {
     transactions.forEach(t => {
       const dateLabel = new Date(t.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
       if (stats[dateLabel]) {
-        if (t.type === 'sale') stats[dateLabel].sales += t.amount;
-        else stats[dateLabel].expenses += t.amount;
+        if (t.type === 'sale' || t.type === 'debt') stats[dateLabel].sales += t.amount;
+        else if (t.type === 'expense') stats[dateLabel].expenses += t.amount;
       }
     });
 
