@@ -7,6 +7,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useTheme } from '../../models/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -42,28 +43,36 @@ const StatsScreen = () => {
     if (!user) return;
     try {
       setLoading(true);
-      const summary = await transactionService.getFinancialSummary(user.id);
-      const products = await stockService.getProducts(user.id);
-      const transactions = await transactionService.getTransactions(user.id);
-      const daily = await transactionService.getDailyStats(user.id, 6);
+      const ownerId = user.id;
+      const summary = await transactionService.getFinancialSummary(ownerId);
+      const products = await stockService.getProducts(ownerId);
+      const transactions = await transactionService.getTransactions(ownerId);
+      const daily = await transactionService.getDailyStats(ownerId, 6);
 
       // Calcul du stock bas (ex: moins de 5 articles)
       const lowStock = products.filter(p => p.quantity <= 5).length;
 
       // Calcul de la catégorie la plus fréquente
-      const categories = transactions.filter(t => t.type === 'sale').map(t => t.category);
-      const topCat = categories.length > 0
-        ? categories.sort((a,b) =>
-            categories.filter(v => v===a).length - categories.filter(v => v===b).length
-          ).pop()
-        : 'Aucune';
+      const categories = transactions
+        .filter(t => t.type === 'sale' && t.category)
+        .map(t => t.category);
+
+      let topCat = 'Général';
+      if (categories.length > 0) {
+        const counts = categories.reduce((acc, cat) => {
+          acc[cat] = (acc[cat] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+
+        topCat = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+      }
 
       setStats({
-        totalSales: summary.totalSales,
-        totalExpenses: summary.totalExpenses,
-        balance: summary.balance,
+        totalSales: summary.totalSales || 0,
+        totalExpenses: summary.totalExpenses || 0,
+        balance: summary.balance || 0,
         lowStockCount: lowStock,
-        topCategory: topCat || 'Général'
+        topCategory: topCat
       });
 
       if (daily.labels.length > 0) {
@@ -112,6 +121,14 @@ const StatsScreen = () => {
     </Card>
   );
 
+  if (loading && !refreshing) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
@@ -154,23 +171,29 @@ const StatsScreen = () => {
 
         <Text style={[styles.chartTitle, { color: colors.text }]}>Évolution des ventes (7j)</Text>
         <Card style={styles.chartCard}>
-          <LineChart
-            data={chartData}
-            width={screenWidth - 60}
-            height={180}
-            chartConfig={{
-              backgroundColor: colors.surface,
-              backgroundGradientFrom: colors.surface,
-              backgroundGradientTo: colors.surface,
-              decimalPlaces: 0,
-              color: (opacity = 1) => colors.primary,
-              labelColor: (opacity = 1) => colors.textMuted,
-              style: { borderRadius: 16 },
-              propsForDots: { r: "4", strokeWidth: "2", stroke: colors.primary }
-            }}
-            bezier
-            style={{ marginVertical: 8, borderRadius: 16 }}
-          />
+          {chartData.labels.length > 0 && chartData.datasets[0].data.length > 0 ? (
+            <LineChart
+              data={chartData}
+              width={screenWidth - 60}
+              height={180}
+              chartConfig={{
+                backgroundColor: colors.surface,
+                backgroundGradientFrom: colors.surface,
+                backgroundGradientTo: colors.surface,
+                decimalPlaces: 0,
+                color: (opacity = 1) => colors.primary,
+                labelColor: (opacity = 1) => colors.textMuted,
+                style: { borderRadius: 16 },
+                propsForDots: { r: "4", strokeWidth: "2", stroke: colors.primary }
+              }}
+              bezier
+              style={{ marginVertical: 8, borderRadius: 16 }}
+            />
+          ) : (
+            <View style={{ height: 180, justifyContent: 'center', alignItems: 'center' }}>
+              <Text style={{ color: colors.textMuted }}>Pas assez de données pour le graphique</Text>
+            </View>
+          )}
         </Card>
 
         <TouchableOpacity style={styles.fullWidthCard}>

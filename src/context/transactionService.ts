@@ -9,9 +9,10 @@ const TRANSACTIONS_KEY = '@asika_transactions';
 
 export const transactionService = {
   getTransactions: async (userId: string): Promise<Transaction[]> => {
-    const { data, error } = await supabase.from('transactions').select('*').eq('user_id', userId).order('date', { ascending: false });
+    let query = supabase.from('transactions').select('*').eq('user_id', userId);
+
+    const { data, error } = await query.order('date', { ascending: false });
     if (error) throw error;
-    // Map snake_case from Supabase to camelCase for our app's Transaction type
     return (data || []).map(mapSupabaseTransactionToAppTransaction);
   },
 
@@ -26,6 +27,8 @@ export const transactionService = {
       .from('transactions')
       .insert({
         user_id: newTransaction.userId,
+        created_by_id: newTransaction.createdById,
+        created_by_name: newTransaction.createdByName,
         type: newTransaction.type,
         amount: newTransaction.amount,
         description: newTransaction.description,

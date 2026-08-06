@@ -81,5 +81,13 @@ export const authService = {
       .update({ subscription_expiry: expiryDate })
       .eq('id', userId);
     if (error) throw error;
+  },
+
+  updateUserPremium: async (userId: string, isPremium: boolean): Promise<void> => {
+    const { error } = await supabase
+      .from('users')
+      .update({ is_premium: isPremium })
+      .eq('id', userId);
+    if (error) throw error;
   }
 };

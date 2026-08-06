@@ -8,8 +8,9 @@ export const mapSupabaseUserToAppUser = (supabaseUser: any): User => {
     lastName: supabaseUser.last_name,
     email: supabaseUser.email,
     password: '', // Le mot de passe n'est pas stocké dans la table public
-    role: supabaseUser.role,
+    role: supabaseUser.role || 'proprietaire',
     status: supabaseUser.status,
+    isPremium: supabaseUser.is_premium || false,
     subscriptionExpiry: supabaseUser.subscription_expiry,
     debt: supabaseUser.debt,
     createdAt: supabaseUser.created_at,
@@ -27,6 +28,7 @@ export const mapAppUserToSupabaseInsert = (appUser: User) => {
     email: appUser.email,
     role: appUser.role,
     status: appUser.status,
+    is_premium: appUser.isPremium,
     subscription_expiry: appUser.subscriptionExpiry,
     debt: appUser.debt,
     created_at: appUser.createdAt,
@@ -40,6 +42,8 @@ export const mapSupabaseTransactionToAppTransaction = (supabaseTransaction: any)
   return {
     id: supabaseTransaction.id,
     userId: supabaseTransaction.user_id,
+    createdById: supabaseTransaction.created_by_id,
+    createdByName: supabaseTransaction.created_by_name,
     type: supabaseTransaction.type,
     amount: supabaseTransaction.amount,
     description: supabaseTransaction.description,
@@ -59,6 +63,8 @@ export const mapAppTransactionToSupabaseInsert = (t: Transaction) => {
   return {
     id: t.id,
     user_id: t.userId,
+    created_by_id: t.createdById,
+    created_by_name: t.createdByName,
     type: t.type,
     amount: t.amount,
     description: t.description,

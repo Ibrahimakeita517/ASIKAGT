@@ -1,5 +1,5 @@
 // Rôle utilisateur
-export type UserRole = 'merchant' | 'admin';
+export type UserRole = 'proprietaire' | 'admin';
 
 // Statut du compte
 export type AccountStatus = 'active' | 'inactive';
@@ -24,6 +24,7 @@ export interface User {
   password: string; // Stocké localement pour la simulation
   role: UserRole;
   status: AccountStatus;
+  isPremium: boolean;
   subscriptionExpiry: string; // ISO date string
   debt: number; // montant dû en FCFA
   createdAt: string;
@@ -39,6 +40,8 @@ export type TransactionType = 'sale' | 'expense' | 'debt';
 export interface Transaction {
   id: string;
   userId: string;
+  createdById: string; // Qui a créé la transaction
+  createdByName: string; // Nom de celui qui a créé
   type: TransactionType;
   amount: number; // Montant total pour une vente/dépense, ou montant payé pour une dette initiale
   description: string;

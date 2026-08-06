@@ -145,6 +145,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       // 1. Enregistrer la transaction (Vente normale ou Dette)
       const transactionData: Omit<Transaction, 'id' | 'createdAt'> = {
         userId: user.id,
+        createdById: user.id,
+        createdByName: `${user.firstName} ${user.lastName}`.trim(),
         type: isDebt ? 'debt' : type,
         amount: finalAmountEncashed,
         description: type === 'sale' ? description.trim() : category.trim(),

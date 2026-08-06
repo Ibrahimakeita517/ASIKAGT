@@ -5,7 +5,7 @@ import { useTheme } from '../../models/ThemeContext';
 import { transactionService } from '../../context/transactionService';
 import { Transaction } from '../../models/types';
 import { formatCurrency, formatRelativeDate } from '../../context/formatters';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
 
@@ -114,17 +114,19 @@ const HistoryScreen = () => {
         onPress={() => setSelectedTransaction(item)}
       >
         <View style={[styles.iconContainer, { backgroundColor: iconColor + '15' }]}>
-          <Ionicons
-            name={iconName}
-            size={20}
-            color={iconColor}
-          />
+          {isDebt ? (
+            <MaterialCommunityIcons name="hand-coin" size={20} color={iconColor} />
+          ) : (
+            <Ionicons name={iconName} size={20} color={iconColor} />
+          )}
         </View>
         <View style={styles.info}>
           <Text style={[styles.description, { color: colors.text }]}>
             {isDebt ? `Dette: ${item.customerName || 'Client'}` : item.description}
           </Text>
-          <Text style={[styles.category, { color: colors.textMuted }]}>{item.category}</Text>
+          <Text style={[styles.category, { color: colors.textMuted }]}>
+            {item.category}
+          </Text>
         </View>
         <View style={styles.rightSide}>
           <Text style={[styles.amount, { color: iconColor }]}>
@@ -291,6 +293,8 @@ const HistoryScreen = () => {
                       })}
                     </Text>
                   </View>
+
+
 
                   {selectedTransaction.type === 'debt' && (
                     <>

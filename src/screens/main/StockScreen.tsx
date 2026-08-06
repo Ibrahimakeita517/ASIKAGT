@@ -14,7 +14,7 @@ const StockScreen = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLocked, setIsLocked] = useState(true);
+  // const [isLocked, setIsLocked] = useState(true);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<'all' | 'month'>('all');
 
@@ -38,42 +38,29 @@ const StockScreen = () => {
     if (!user) return;
     setIsLoading(true);
     try {
+      const ownerId = user.id;
       // On charge les produits en priorité
-      const productsData = await stockService.getProducts(user.id);
+      const productsData = await stockService.getProducts(ownerId);
       setProducts(productsData || []);
 
       // On essaie de charger l'historique séparément
       try {
-        const entriesData = await stockService.getStockEntries(user.id);
+        const entriesData = await stockService.getStockEntries(ownerId);
         setStockEntries(entriesData || []);
       } catch (e) {
         console.log("Note: Historique indisponible");
       }
     } catch (error: any) {
       console.error("Erreur chargement stock:", error);
-      // On affiche l'erreur réelle pour comprendre le blocage
       Alert.alert("Erreur de chargement", error.message || "Problème de connexion à la base de données");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadProducts = async () => {
-    if (!user) return;
-    try {
-      const data = await stockService.getProducts(user.id);
-      setProducts(data);
-    } catch (error) {
-      console.error("Erreur chargement stock:", error);
-    }
-  };
-
-  const toggleLock = () => {
-    setIsLocked(!isLocked);
-    if (isLocked) {
-      // Optionnel: On pourrait ajouter un retour haptique ou un petit toast
-    }
-  };
+  // const toggleLock = () => {
+  //   // setIsLocked(!isLocked);
+  // };
 
   const handleAddProduct = async () => {
     if (!user) return;
@@ -156,10 +143,6 @@ const StockScreen = () => {
   };
 
   const openEditModal = (product: Product) => {
-    if (isLocked) {
-      Alert.alert("Stock Verrouillé", "Déverrouillez le stock en cliquant sur le cadenas pour modifier un produit.");
-      return;
-    }
     setNewProduct({
       name: product.name,
       purchasePrice: product.purchasePrice?.toString() || '',
@@ -211,8 +194,7 @@ const StockScreen = () => {
                 Stock: {item.quantity}
               </Text>
             </View>
-            {!isLocked && <Ionicons name="pencil" size={16} color={colors.primary} style={{ marginTop: 5 }} />}
-            {isLocked && <Ionicons name="lock-closed-outline" size={14} color={colors.textMuted} style={{ marginTop: 5 }} />}
+            <Ionicons name="pencil" size={16} color={colors.primary} style={{ marginTop: 5 }} />
           </View>
         </Card>
       </TouchableOpacity>
@@ -231,23 +213,8 @@ const StockScreen = () => {
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
-            style={[styles.lockBtn, { backgroundColor: isLocked ? colors.border : colors.secondary + '20' }]}
-            onPress={toggleLock}
-          >
-            <Ionicons
-              name={isLocked ? "lock-closed" : "lock-open"}
-              size={22}
-              color={isLocked ? colors.textMuted : colors.secondary}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.addBtn, { backgroundColor: isLocked ? colors.textMuted : colors.primary }]}
+            style={[styles.addBtn, { backgroundColor: colors.primary }]}
             onPress={() => {
-              if (isLocked) {
-                Alert.alert("Stock Verrouillé", "Déverrouillez le stock pour ajouter un produit.");
-                return;
-              }
               resetForm();
               setShowModal(true);
             }}
@@ -284,7 +251,6 @@ const StockScreen = () => {
               <Ionicons name="cube-outline" size={60} color={colors.textMuted} />
               <Text style={[styles.empty, { color: colors.textMuted }]}>Aucun produit en stock</Text>
               <TouchableOpacity onPress={() => {
-                if (isLocked) toggleLock();
                 setShowModal(true);
               }}>
                 <Text style={{ color: colors.primary, marginTop: 10 }}>Ajouter votre premier produit</Text>

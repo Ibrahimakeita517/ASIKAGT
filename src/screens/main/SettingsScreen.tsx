@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -9,7 +9,7 @@ import {
   Alert, 
   Linking,
   Modal,
-  Platform
+  Image
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../models/ThemeContext';
@@ -20,92 +20,47 @@ import { Button } from '../../components/common/Button';
 import { Ionicons } from '@expo/vector-icons';
 
 const SettingsScreen = () => {
-  const { user, signOut, updateProfile, updatePassword, isAdmin } = useAuth();
+  const { user, signOut, updateProfile, isAdmin } = useAuth();
   const { mode, toggleTheme, colors } = useTheme();
 
-  // États pour le profil
-  const [firstName, setFirstName] = useState(user?.firstName || '[Sidiki]');
-  const [lastName, setLastName] = useState(user?.lastName || '[Keita]');
+  const [firstName, setFirstName] = useState(user?.firstName || '');
+  const [lastName, setLastName] = useState(user?.lastName || '');
   const [phone, setPhone] = useState(user?.phone || '');
-  const [newPassword, setNewPassword] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
-  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
-  
-  // Mettre à jour les champs quand l'utilisateur est chargé
-  React.useEffect(() => {
+
+  const [aboutVisible, setAboutVisible] = useState(false);
+
+  useEffect(() => {
     if (user) {
-      setFirstName(user.firstName || '[Sidiki]');
-      setLastName(user.lastName || '[Keita]');
+      setFirstName(user.firstName || '');
+      setLastName(user.lastName || '');
       setPhone(user.phone || '');
     }
   }, [user]);
 
-  // État pour la modale "À propos"
-  const [aboutVisible, setAboutVisible] = useState(false);
-
   const handleUpdateProfile = async () => {
-    if (!firstName.trim() || !lastName.trim() || !phone.trim()) {
-      Alert.alert('Erreur', 'Les champs nom, prénom et téléphone ne peuvent pas être vides.');
+    if (!firstName.trim()) {
+      Alert.alert('Erreur', 'Le prénom est obligatoire.');
       return;
     }
-
-    if (
-      firstName === user?.firstName &&
-      lastName === user?.lastName &&
-      phone === user?.phone
-    ) {
-      Alert.alert('Info', 'Aucune modification détectée.');
-      return;
-    }
-
     setIsUpdatingProfile(true);
     try {
       await updateProfile(firstName, lastName, phone);
-      Alert.alert('Succès', 'Profil mis à jour avec succès.');
+      Alert.alert('Succès', 'Profil mis à jour.');
     } catch (e) {
-      Alert.alert('Erreur', 'Impossible de mettre à jour le profil.');
+      Alert.alert('Erreur', 'Echec de la mise à jour.');
     } finally {
       setIsUpdatingProfile(false);
     }
   };
 
-  const handleChangePassword = async () => {
-    if (newPassword.length < 8) {
-      Alert.alert('Erreur', 'Le mot de passe doit contenir au moins 8 caractères.');
-      return;
-    }
-    setIsUpdatingPassword(true);
-    try {
-      await updatePassword(newPassword);
-      setNewPassword('');
-      Alert.alert('Succès', 'Mot de passe modifié avec succès.');
-    } catch (e) {
-      Alert.alert('Erreur', 'Impossible de modifier le mot de passe.');
-    } finally {
-      setIsUpdatingPassword(false);
-    }
-  };
-
-  const handleLogout = () => {
-    Alert.alert(
-      "Déconnexion",
-      "Voulez-vous vraiment vous déconnecter ?",
-      [
-        { text: "Annuler", style: "cancel" },
-        { text: "Se déconnecter", style: "destructive", onPress: signOut }
-      ]
-    );
-  };
-
   const openSupport = (type: 'whatsapp' | 'tel' | 'mail') => {
-    const phone = "22383221696";
+    const phoneNum = "22383221696";
     const email = "support@asika.app";
-    
     let url = "";
-    if (type === 'whatsapp') url = `https://wa.me/${phone}?text=Bonjour ASIKA Support`;
-    if (type === 'tel') url = `tel:+${phone}`;
+    if (type === 'whatsapp') url = `https://wa.me/${phoneNum}?text=Bonjour ASIKA Support`;
+    if (type === 'tel') url = `tel:+${phoneNum}`;
     if (type === 'mail') url = `mailto:${email}`;
-    
     Linking.openURL(url).catch(() => Alert.alert("Erreur", "Impossible d'ouvrir l'application."));
   };
 
@@ -116,19 +71,22 @@ const SettingsScreen = () => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
+
         {/* Header Profil */}
         <View style={styles.profileHeader}>
-          <Avatar firstName={user?.firstName || ''} lastName={user?.lastName || ''} size={80} />
+          <Avatar firstName={user?.firstName || 'A'} lastName={user?.lastName || 'K'} size={80} />
           <Text style={[styles.userName, { color: colors.text }]}>{user?.firstName} {user?.lastName}</Text>
-          
           <Text style={[styles.userEmail, { color: colors.textMuted }]}>{user?.email}</Text>
-          <View style={[styles.roleBadge, { backgroundColor: isAdmin ? '#F59E0B' : colors.primary }]}>
-            <Text style={styles.roleText}>{isAdmin ? 'Administrateur' : 'Marchand'}</Text>
-          </View>
+
+          {isAdmin && (
+            <View style={[styles.roleBadge, { backgroundColor: '#F59E0B' }]}>
+              <Text style={styles.roleText}>ADMINISTRATEUR</Text>
+            </View>
+          )}
         </View>
 
         {/* Section Profil */}
-        <SectionTitle title="Profil" />
+        <SectionTitle title="Mon Profil" />
         <Card>
           <Input label="Prénom" value={firstName} onChangeText={setFirstName} />
           <Input label="Nom" value={lastName} onChangeText={setLastName} />
@@ -136,16 +94,9 @@ const SettingsScreen = () => {
           <Button title="Enregistrer les modifications" onPress={handleUpdateProfile} loading={isUpdatingProfile} />
         </Card>
 
-        {/* Section Sécurité */}
-        <SectionTitle title="Sécurité" />
-        <Card>
-          <Input label="Nouveau mot de passe" value={newPassword} onChangeText={setNewPassword} secureTextEntry placeholder="Min. 8 caractères" />
-          <Button title="Changer le mot de passe" type="outline" onPress={handleChangePassword} loading={isUpdatingPassword} />
-        </Card>
-
         {/* Section Préférences */}
         <SectionTitle title="Préférences" />
-        <Card style={styles.rowCard}>
+        <Card>
           <View style={styles.prefRow}>
             <View style={styles.prefLabelGroup}>
               <Ionicons name="moon" size={22} color={colors.text} />
@@ -157,10 +108,10 @@ const SettingsScreen = () => {
 
         {/* Section Support */}
         <SectionTitle title="Support & Aide" />
-        <Card style={styles.supportCard}>
+        <Card style={{ paddingVertical: 5 }}>
           <TouchableOpacity style={styles.supportItem} onPress={() => openSupport('whatsapp')}>
             <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
-            <Text style={[styles.supportText, { color: colors.text }]}>Contacter via WhatsApp</Text>
+            <Text style={[styles.supportText, { color: colors.text }]}>WhatsApp Support</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.supportItem} onPress={() => openSupport('tel')}>
             <Ionicons name="call" size={24} color={colors.primary} />
@@ -168,7 +119,7 @@ const SettingsScreen = () => {
           </TouchableOpacity>
           <TouchableOpacity style={styles.supportItem} onPress={() => Linking.openURL('https://ibrahimakeita517.github.io/ASIKAGT-site-officiel/')}>
             <Ionicons name="globe-outline" size={24} color={colors.secondary} />
-            <Text style={[styles.supportText, { color: colors.text }]}>Visiter notre site web</Text>
+            <Text style={[styles.supportText, { color: colors.text }]}>Site officiel</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.supportItem} onPress={() => setAboutVisible(true)}>
             <Ionicons name="information-circle" size={24} color={colors.textMuted} />
@@ -176,77 +127,74 @@ const SettingsScreen = () => {
           </TouchableOpacity>
         </Card>
 
-        <Button title="Se déconnecter" type="danger" onPress={handleLogout} style={styles.logoutBtn} />
-        
+        <TouchableOpacity onPress={signOut} style={styles.logoutBtn}>
+          <Text style={{ color: '#EF4444', fontWeight: 'bold', textAlign: 'center' }}>SE DÉCONNECTER</Text>
+        </TouchableOpacity>
+
         <Text style={[styles.versionText, { color: colors.textMuted }]}>Version 1.0.0</Text>
       </ScrollView>
 
       {/* Modale À propos */}
-      <Modal visible={aboutVisible} transparent animationType="fade">
+      <Modal visible={aboutVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-            <Ionicons name="storefront" size={50} color={colors.primary} />
-            <Text style={[styles.modalTitle, { color: colors.text }]}>ASIKA</Text>
-            <Text style={[styles.modalVersion, { color: colors.textMuted }]}>v1.0.0</Text>
-            <Text style={[styles.modalDesc, { color: colors.text }]}>
-              ASIKA est votre partenaire quotidien pour la gestion de votre commerce. 
-              Digitalisez vos cahiers et suivez vos profits en temps réel.
-            </Text>
-            <TouchableOpacity onPress={() => Linking.openURL('https://ibrahimakeita517.github.io/ASIKAGT-site-officiel/')} style={{ marginBottom: 20 }}>
-              <Text style={{ color: colors.primary, fontWeight: 'bold', fontSize: 16 }}>Visiter le site officiel</Text>
-            </TouchableOpacity>
-            <Text style={[styles.modalDev, { color: colors.textMuted }]}>Développé avec ❤️ par l'équipe ASIKA</Text>
-            <Button title="Fermer" type="outline" onPress={() => setAboutVisible(false)} style={{ width: '100%' }} />
+          <View style={[styles.modalContent, { backgroundColor: colors.surface, maxHeight: '80%' }]}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
+              <Image source={require('../../../assets/icon.png')} style={{ width: 80, height: 80, borderRadius: 20 }} />
+              <Text style={[styles.modalTitle, { color: colors.text }]}>ASIKA</Text>
+              <Text style={[styles.modalTagline, { color: colors.primary }]}>La révolution de la gestion commerciale</Text>
+
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              <View style={styles.founderSection}>
+                <Text style={[styles.founderTitle, { color: colors.text }]}>Mot du Fondateur</Text>
+                <Text style={[styles.founderName, { color: colors.primary }]}>Ibrahima Keita</Text>
+                <Text style={[styles.founderVision, { color: colors.text }]}>
+                  "Ma mission est de moderniser le commerce en Afrique en offrant des outils puissants et accessibles à tous les entrepreneurs."
+                </Text>
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+              <Text style={[styles.modalDesc, { color: colors.text }]}>
+                ASIKA est bien plus qu'une application, c'est votre partenaire de croissance au quotidien.
+              </Text>
+
+              <Button title="Fermer" type="outline" onPress={() => setAboutVisible(false)} style={{ width: '100%', marginTop: 20 }} />
+            </ScrollView>
           </View>
         </View>
       </Modal>
+
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { padding: 20, paddingTop: 60, paddingBottom: 40 },
-  profileHeader: { alignItems: 'center', marginBottom: 30 },
-  userName: { fontSize: 22, fontWeight: 'bold', marginTop: 15 },
-  userEmail: { fontSize: 14, marginTop: 4 },
-  qrContainer: { 
-    marginTop: 20, 
-    padding: 15, 
-    backgroundColor: '#FFF', 
-    borderRadius: 15, 
-    elevation: 3,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4
-  },
-  roleBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, marginTop: 10 },
-  roleText: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
-  sectionTitle: { fontSize: 13, fontWeight: 'bold', marginTop: 25, marginBottom: 10, marginLeft: 5 },
-  rowCard: { paddingVertical: 10 },
-  prefRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
+  scrollContent: { padding: 20, paddingTop: 40, paddingBottom: 40 },
+  profileHeader: { alignItems: 'center', marginBottom: 25 },
+  userName: { fontSize: 22, fontWeight: 'bold', marginTop: 10 },
+  userEmail: { fontSize: 14, opacity: 0.6 },
+  roleBadge: { paddingHorizontal: 15, paddingVertical: 5, borderRadius: 20, marginTop: 10 },
+  roleText: { color: '#FFF', fontSize: 11, fontWeight: '900' },
+  sectionTitle: { fontSize: 12, fontWeight: 'bold', marginTop: 25, marginBottom: 10 },
+  prefRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
   prefLabelGroup: { flexDirection: 'row', alignItems: 'center' },
   prefLabel: { fontSize: 16, marginLeft: 12 },
-  supportCard: { paddingVertical: 5 },
-  supportItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 0.5, borderBottomColor: '#eee' },
+  supportItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.05)' },
   supportText: { fontSize: 16, marginLeft: 15 },
-  logoutBtn: { marginTop: 40 },
-  versionText: { textAlign: 'center', marginTop: 20, fontSize: 12 },
-  modalOverlay: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.6)', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    padding: 20 
-  },
-  modalContent: { 
-    width: '100%', 
-    borderRadius: 25, 
-    padding: 30, 
-    alignItems: 'center' 
-  },
-  modalTitle: { fontSize: 24, fontWeight: 'bold', marginTop: 15 },
-  modalVersion: { fontSize: 14, marginBottom: 20 },
-  modalDesc: { textAlign: 'center', fontSize: 16, lineHeight: 24, marginBottom: 20 },
-  modalDev: { fontSize: 12, marginBottom: 30 }
+  logoutBtn: { marginTop: 40, padding: 15 },
+  versionText: { textAlign: 'center', marginTop: 20, fontSize: 10 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { width: '100%', borderRadius: 25, padding: 25, alignItems: 'center' },
+  modalTitle: { fontSize: 22, fontWeight: 'bold', marginTop: 10 },
+  modalTagline: { fontSize: 13, textAlign: 'center', marginTop: 5 },
+  divider: { height: 1, width: '100%', marginVertical: 15 },
+  founderSection: { alignItems: 'center', width: '100%' },
+  founderTitle: { fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', marginBottom: 5, opacity: 0.6 },
+  founderName: { fontSize: 18, fontWeight: 'bold', marginBottom: 5 },
+  founderVision: { fontSize: 13, fontStyle: 'italic', textAlign: 'center' },
+  modalDesc: { textAlign: 'center', fontSize: 14, lineHeight: 20 }
 });
 
 export default SettingsScreen;

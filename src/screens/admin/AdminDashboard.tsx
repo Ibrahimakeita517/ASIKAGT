@@ -93,12 +93,41 @@ const AdminDashboard = () => {
     );
   };
 
+  const handleTogglePremium = (user: User) => {
+    const newStatus = !user.isPremium;
+    const actionLabel = newStatus ? 'Activer le mode PREMIUM' : 'Retirer le mode PREMIUM';
+
+    Alert.alert(
+      "Gestion Premium",
+      `Voulez-vous ${actionLabel.toLowerCase()} pour ${user.firstName} ?`,
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: newStatus ? "Activer Premium" : "Retirer Premium",
+          onPress: async () => {
+            try {
+              await authService.updateUserPremium(user.id, newStatus);
+              fetchUsers();
+            } catch (e) {
+              Alert.alert("Erreur", "Impossible de mettre à jour le statut Premium.");
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderUserItem = ({ item }: { item: User }) => (
     <Card style={styles.userCard}>
       <View style={styles.cardHeader}>
         <Avatar firstName={item.firstName} lastName={item.lastName} size={50} />
         <View style={styles.userInfo}>
-          <Text style={[styles.userName, { color: colors.text }]}>{item.firstName} {item.lastName}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={[styles.userName, { color: colors.text }]}>{item.firstName} {item.lastName}</Text>
+            {item.isPremium && (
+              <Ionicons name="star" size={16} color="#FFD700" style={{ marginLeft: 5 }} />
+            )}
+          </View>
           <Text style={[styles.userEmail, { color: colors.textMuted }]}>{item.email}</Text>
         </View>
         <View style={[
@@ -118,18 +147,28 @@ const AdminDashboard = () => {
 
       <View style={styles.cardFooter}>
         <View>
-          <Text style={[styles.debtLabel, { color: colors.textMuted }]}>Dette</Text>
+          <Text style={[styles.debtLabel, { color: colors.textMuted }]}>{item.isPremium ? "Compte Premium" : "Compte Standard"}</Text>
           <Text style={[
             styles.debtAmount, 
-            { color: item.debt > 0 ? '#F59E0B' : colors.text }
+            { color: item.isPremium ? colors.primary : colors.text }
           ]}>
-            {formatCurrency(item.debt)}
+            {item.isPremium ? 'PREMIUM' : 'STANDARD'}
           </Text>
         </View>
         
         <View style={styles.actions}>
           <TouchableOpacity 
-            style={[styles.actionBtn, { borderColor: colors.border }]}
+            style={[styles.actionBtn, { borderColor: item.isPremium ? '#FFD700' : colors.border }]}
+            onPress={() => handleTogglePremium(item)}
+          >
+            <Ionicons
+              name={item.isPremium ? "star" : "star-outline"}
+              size={20}
+              color={item.isPremium ? "#FFD700" : colors.textMuted}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionBtn, { borderColor: colors.border, marginLeft: 10 }]}
             onPress={() => handleToggleStatus(item)}
           >
             <Ionicons 
