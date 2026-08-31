@@ -3,6 +3,9 @@
     "name": "ASIKA",
     "slug": "asika",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -16,7 +19,8 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.asika.merchant"
+      "bundleIdentifier": "app.asika.merchant",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,11 +28,36 @@
         "backgroundColor": "#1e3a8a"
       },
       "package": "app.asika.merchant",
-      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "WAKE_LOCK"],
-      "usesCleartextTraffic": true
+      "versionCode": 1,
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "WAKE_LOCK"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/icon.png",
+      "bundler": "metro",
+      "output": "single",
+      "config": {
+        "pwa": {
+          "name": "ASIKA - Gestion Commerciale",
+          "shortName": "ASIKA",
+          "description": "Logiciel de gestion commerciale simplifié pour commerçants.",
+          "themeColor": "#1e3a8a",
+          "backgroundColor": "#1e3a8a",
+          "display": "standalone",
+          "orientation": "portrait",
+          "icon": "./assets/icon.png",
+          "startUrl": "/",
+          "lang": "fr"
+        }
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
     }
   }
 }

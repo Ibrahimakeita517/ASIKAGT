@@ -1,92 +1,89 @@
-import { supabase } from '../services/supabase';
 import { Product, StockEntry } from '../models/types';
+import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '../services/supabase';
 import {
   mapSupabaseProductToAppProduct,
-  mapAppProductToSupabaseInsert,
-  mapAppStockEntryToSupabaseInsert,
-  mapSupabaseStockEntryToAppStockEntry
 } from '../utils/supabaseMappers';
+import { offlineService } from '../services/offlineService';
 
 export const stockService = {
   // Récupérer tous les produits du marchand
   getProducts: async (userId: string): Promise<Product[]> => {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('user_id', userId)
-      .order('name', { ascending: true });
-    
-    if (error) throw error;
-    return (data || []).map(mapSupabaseProductToAppProduct);
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('user_id', userId)
+        .order('name', { ascending: true });
+
+      if (!error && data) {
+        const products = data.map(mapSupabaseProductToAppProduct);
+        await offlineService.saveProducts(products);
+        return products;
+      }
+    } catch (e) {
+      console.log("Mode hors ligne : chargement des produits locaux");
+    }
+    return await offlineService.getProducts();
   },
 
   // Ajouter un nouveau produit
   addProduct: async (product: Omit<Product, 'id' | 'createdAt'>): Promise<Product> => {
-    const { data, error } = await supabase
-      .from('products')
-      .insert(mapAppProductToSupabaseInsert(product))
-      .select()
-      .single();
-    
-    if (error) {
-      console.error("Erreur addProduct:", error.message);
-      throw new Error("Erreur table produits: " + error.message);
-    }
+    const newProduct: Product = {
+      ...product,
+      id: uuidv4(),
+      createdAt: new Date().toISOString()
+    };
 
-    const newProduct = mapSupabaseProductToAppProduct(data);
+    // 1. Sauvegarde locale
+    const localProducts = await offlineService.getProducts();
+    await offlineService.saveProducts([...localProducts, newProduct]);
 
-    // Logger l'entrée de stock initiale (Optionnel, ne doit pas bloquer l'ajout)
-    try {
-      await stockService.logStockEntry({
-        productId: newProduct.id,
-        productName: newProduct.name,
-        quantityAdded: newProduct.quantity,
-        purchasePrice: newProduct.purchasePrice,
-        date: new Date().toISOString(),
-        userId: newProduct.userId
-      });
-    } catch (e) {
-      console.warn("Impossible de logger l'entrée initiale:", e);
-    }
+    // 2. Ajout à la file de synchronisation
+    await offlineService.addToSyncQueue({
+      id: newProduct.id,
+      type: 'ADD_PRODUCT',
+      payload: newProduct
+    });
 
     return newProduct;
   },
 
   // Mettre à jour un produit
   updateProduct: async (productId: string, updates: Partial<Omit<Product, 'id' | 'createdAt'>>, oldProduct?: Product) => {
-    const { error } = await supabase
-      .from('products')
-      .update(mapAppProductToSupabaseInsert(updates as any))
-      .eq('id', productId);
+    const localProducts = await offlineService.getProducts();
+    const index = localProducts.findIndex(p => p.id === productId);
 
-    if (error) throw error;
+    if (index !== -1) {
+      const updatedProduct = { ...localProducts[index], ...updates };
+      localProducts[index] = updatedProduct;
+      await offlineService.saveProducts(localProducts);
 
-    // Si la quantité a augmenté, logger l'entrée
-    if (oldProduct && updates.quantity !== undefined && updates.quantity > oldProduct.quantity) {
-      await stockService.logStockEntry({
-        productId: productId,
-        productName: updates.name || oldProduct.name,
-        quantityAdded: updates.quantity - oldProduct.quantity,
-        purchasePrice: updates.purchasePrice || oldProduct.purchasePrice,
-        date: new Date().toISOString(),
-        userId: oldProduct.userId
+      await offlineService.addToSyncQueue({
+        id: uuidv4(),
+        type: 'UPDATE_PRODUCT',
+        payload: { productId, updates }
       });
     }
   },
 
   // Supprimer un produit
   deleteProduct: async (productId: string) => {
-    const { error } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', productId);
+    const localProducts = await offlineService.getProducts();
+    const filtered = localProducts.filter(p => p.id !== productId);
+    await offlineService.saveProducts(filtered);
 
-    if (error) throw error;
+    // Note: il manque DELETE_PRODUCT dans le type SyncItem mais je vais l'ajouter au SyncManager
+    await offlineService.addToSyncQueue({
+      id: uuidv4(),
+      type: 'UPDATE_PRODUCT', // On peut réutiliser ou créer un nouveau type
+      payload: { productId, deleted: true } as any
+    });
   },
 
   // Mettre à jour la quantité (ex: après une vente)
   updateQuantity: async (productId: string, newQuantity: number) => {
-    await supabase.from('products').update({ quantity: newQuantity }).eq('id', productId);
+    await stockService.updateProduct(productId, { quantity: newQuantity });
   },
 
   // Logger une entrée de stock

@@ -19,9 +19,12 @@ import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import { Ionicons } from '@expo/vector-icons';
 
+import { useSync } from '../../context/SyncContext';
+
 const SettingsScreen = () => {
   const { user, signOut, updateProfile, isAdmin } = useAuth();
   const { mode, toggleTheme, colors } = useTheme();
+  const { isOnline, pendingCount, isSyncing, syncNow, deferredPrompt, installApp } = useSync();
 
   const [firstName, setFirstName] = useState(user?.firstName || '');
   const [lastName, setLastName] = useState(user?.lastName || '');
@@ -94,16 +97,37 @@ const SettingsScreen = () => {
           <Button title="Enregistrer les modifications" onPress={handleUpdateProfile} loading={isUpdatingProfile} />
         </Card>
 
-        {/* Section Préférences */}
-        <SectionTitle title="Préférences" />
+        {/* Section Synchronisation & PWA */}
+        <SectionTitle title="Application & Synchro" />
         <Card>
           <View style={styles.prefRow}>
             <View style={styles.prefLabelGroup}>
-              <Ionicons name="moon" size={22} color={colors.text} />
-              <Text style={[styles.prefLabel, { color: colors.text }]}>Mode sombre</Text>
+              <Ionicons
+                name={isOnline ? "cloud-done" : "cloud-offline"}
+                size={22}
+                color={isOnline ? colors.secondary : colors.danger}
+              />
+              <Text style={[styles.prefLabel, { color: colors.text }]}>
+                {isOnline ? "Connecté au serveur" : "Mode Hors-ligne"}
+              </Text>
             </View>
-            <Switch value={mode === 'dark'} onValueChange={toggleTheme} trackColor={{ true: colors.primary }} />
           </View>
+
+          {pendingCount > 0 && (
+            <TouchableOpacity style={styles.syncRow} onPress={syncNow} disabled={isSyncing || !isOnline}>
+              <Ionicons name="refresh" size={20} color={colors.primary} />
+              <Text style={[styles.syncText, { color: colors.primary }]}>
+                {isSyncing ? "Synchronisation..." : `${pendingCount} opération(s) en attente`}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {deferredPrompt && (
+            <TouchableOpacity style={[styles.installBtn, { backgroundColor: colors.primary }]} onPress={installApp}>
+              <Ionicons name="download" size={20} color="#FFF" />
+              <Text style={styles.installBtnText}>Installer ASIKA sur mon écran</Text>
+            </TouchableOpacity>
+          )}
         </Card>
 
         {/* Section Support */}
@@ -181,6 +205,10 @@ const styles = StyleSheet.create({
   prefRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
   prefLabelGroup: { flexDirection: 'row', alignItems: 'center' },
   prefLabel: { fontSize: 16, marginLeft: 12 },
+  syncRow: { flexDirection: 'row', alignItems: 'center', marginTop: 15, padding: 10, backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: 10 },
+  syncText: { fontSize: 14, fontWeight: 'bold', marginLeft: 10 },
+  installBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 15, padding: 15, borderRadius: 12 },
+  installBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 10 },
   supportItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.05)' },
   supportText: { fontSize: 16, marginLeft: 15 },
   logoutBtn: { marginTop: 40, padding: 15 },

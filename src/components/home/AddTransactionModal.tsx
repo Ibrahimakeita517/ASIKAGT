@@ -164,12 +164,21 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
       await transactionService.addTransaction(transactionData);
       
-      // 2. Si c'est une vente de produit en stock, déduire la quantité
+      // 2. Si c'est une vente de produit en stock, déduire la quantité localement
+      // et ajouter une décrémentation relative à la file de synchro
       if (type === 'sale' && selectedProductId) {
         const product = products.find(p => p.id === selectedProductId);
         if (product) {
           const newQty = product.quantity - qty;
+          // Mise à jour locale immédiate
           await stockService.updateQuantity(selectedProductId, newQty > 0 ? newQty : 0);
+
+          // Ajout de la décrémentation relative pour la synchro
+          await offlineService.addToSyncQueue({
+            id: uuidv4(),
+            type: 'DECREMENT_STOCK',
+            payload: { productId: selectedProductId, quantity: qty }
+          });
         }
       }
 

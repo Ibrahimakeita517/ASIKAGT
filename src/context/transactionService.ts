@@ -1,19 +1,32 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, FinancialSummary, TransactionType } from '../models/types';
+import { Transaction, FinancialSummary } from '../models/types';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../services/supabase';
 import { mapSupabaseTransactionToAppTransaction } from '../utils/supabaseMappers';
-
-const TRANSACTIONS_KEY = '@asika_transactions';
+import { offlineService } from '../services/offlineService';
 
 export const transactionService = {
   getTransactions: async (userId: string): Promise<Transaction[]> => {
-    let query = supabase.from('transactions').select('*').eq('user_id', userId);
+    try {
+      // 1. Tenter de récupérer les dernières données depuis Supabase
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: false });
 
-    const { data, error } = await query.order('date', { ascending: false });
-    if (error) throw error;
-    return (data || []).map(mapSupabaseTransactionToAppTransaction);
+      if (!error && data) {
+        const transactions = data.map(mapSupabaseTransactionToAppTransaction);
+        // Sauvegarder en local pour le mode hors ligne futur
+        await offlineService.saveTransactions(transactions);
+        return transactions;
+      }
+    } catch (e) {
+      console.log("Mode hors ligne : chargement des transactions locales");
+    }
+
+    // 2. Si échec (pas d'internet), retourner les données locales
+    return await offlineService.getTransactions();
   },
 
   addTransaction: async (transaction: Omit<Transaction, 'id' | 'createdAt'>): Promise<Transaction> => {
@@ -23,59 +36,63 @@ export const transactionService = {
       createdAt: new Date().toISOString()
     };
 
-    const { data, error } = await supabase
-      .from('transactions')
-      .insert({
-        user_id: newTransaction.userId,
-        created_by_id: newTransaction.createdById,
-        created_by_name: newTransaction.createdByName,
-        type: newTransaction.type,
-        amount: newTransaction.amount,
-        description: newTransaction.description,
-        category: newTransaction.category,
-        date: newTransaction.date,
-        created_at: newTransaction.createdAt,
-        customer_name: newTransaction.customerName,
-        customer_phone: newTransaction.customerPhone,
-        total_amount: newTransaction.totalAmount,
-        remaining_amount: newTransaction.remainingAmount,
-        status: newTransaction.status,
-      })
-      .select()
-      .single();
-    if (error) throw error;
-    return mapSupabaseTransactionToAppTransaction(data);
+    // 1. Sauvegarde locale immédiate
+    const localTransactions = await offlineService.getTransactions();
+    await offlineService.saveTransactions([newTransaction, ...localTransactions]);
+
+    // 2. Ajout à la file de synchronisation
+    await offlineService.addToSyncQueue({
+      id: newTransaction.id,
+      type: 'ADD_TRANSACTION',
+      payload: newTransaction
+    });
+
+    // 3. On ne bloque pas l'utilisateur, le SyncManager s'en chargera
+    return newTransaction;
   },
 
+  // ... (Je vais implémenter le reste dans la suite)
+
   updateDebt: async (transactionId: string, paidAmount: number): Promise<void> => {
-    // 1. Récupérer la transaction actuelle
-    const { data: current, error: getError } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('id', transactionId)
-      .single();
+    // 1. Mise à jour locale immédiate
+    const localTransactions = await offlineService.getTransactions();
+    const transactionIndex = localTransactions.findIndex(t => t.id === transactionId);
 
-    if (getError || !current) throw new Error("Dette introuvable");
+    if (transactionIndex !== -1) {
+      const current = localTransactions[transactionIndex];
+      const newRemaining = (current.remainingAmount || 0) - paidAmount;
+      const newStatus = newRemaining <= 0 ? 'paid' : 'partially_paid';
 
-    const newRemaining = current.remaining_amount - paidAmount;
-    const newStatus = newRemaining <= 0 ? 'paid' : 'partially_paid';
+      localTransactions[transactionIndex] = {
+        ...current,
+        remainingAmount: newRemaining > 0 ? newRemaining : 0,
+        amount: current.amount + paidAmount,
+        status: newStatus as any
+      };
 
-    // 2. Mettre à jour dans Supabase
-    const { error: updateError } = await supabase
-      .from('transactions')
-      .update({
-        remaining_amount: newRemaining > 0 ? newRemaining : 0,
-        amount: current.amount + paidAmount, // Le montant "encaissé" augmente
-        status: newStatus
-      })
-      .eq('id', transactionId);
+      await offlineService.saveTransactions(localTransactions);
 
-    if (updateError) throw updateError;
+      // 2. Ajout à la file de synchronisation
+      await offlineService.addToSyncQueue({
+        id: uuidv4(),
+        type: 'UPDATE_DEBT',
+        payload: { transactionId, paidAmount }
+      });
+    }
   },
 
   deleteTransaction: async (transactionId: string): Promise<void> => {
-    const { error } = await supabase.from('transactions').delete().eq('id', transactionId);
-    if (error) throw error;
+    // 1. Suppression locale immédiate
+    const localTransactions = await offlineService.getTransactions();
+    const filtered = localTransactions.filter(t => t.id !== transactionId);
+    await offlineService.saveTransactions(filtered);
+
+    // 2. Ajout à la file de synchronisation
+    await offlineService.addToSyncQueue({
+      id: uuidv4(),
+      type: 'DELETE_TRANSACTION',
+      payload: { transactionId }
+    });
   },
 
   getFinancialSummary: async (userId: string): Promise<FinancialSummary> => {
