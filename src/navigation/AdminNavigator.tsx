@@ -4,6 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import AdminDashboard from '../screens/admin/AdminDashboard';
 import MessagingScreen from '../screens/admin/MessagingScreen';
 import AccountDetail from '../screens/admin/AccountDetail';
+import AdminReports from '../screens/admin/AdminReports';
+import ActivityLogScreen from '../screens/admin/ActivityLogScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useTheme } from '../models/ThemeContext';
@@ -16,6 +18,8 @@ const DashboardStack = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
       <Stack.Screen name="AccountDetail" component={AccountDetail} />
+      <Stack.Screen name="AdminReports" component={AdminReports} />
+      <Stack.Screen name="ActivityLogs" component={ActivityLogScreen} />
     </Stack.Navigator>
   );
 };
@@ -31,7 +35,7 @@ export const AdminNavigator = () => {
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName: any;
+          let iconName: any = 'help-circle-outline';
           if (route.name === 'Dashboard') iconName = focused ? 'people' : 'people-outline';
           else if (route.name === 'Messages') iconName = focused ? 'chatbox' : 'chatbox-outline';
           else if (route.name === 'Paramètres') iconName = focused ? 'settings' : 'settings-outline';

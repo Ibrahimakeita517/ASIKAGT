@@ -27,18 +27,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          // 1. On met d'abord un profil par défaut pour débloquer l'UI immédiatement
-          const tempUser = createDefaultUser(session.user.id, session.user.email || "");
-          setUser(tempUser);
-          setIsLoading(false); // On débloque l'écran tout de suite
-
-          // 2. On charge le vrai profil (avec le rôle admin) en arrière-plan
-          authService.findUserById(session.user.id).then(profile => {
-            if (profile) setUser(profile);
-          });
-        } else {
-          setIsLoading(false);
+          // On charge directement le vrai profil sans passer par un profil temporaire
+          const profile = await authService.findUserById(session.user.id);
+          if (profile) {
+            setUser(profile);
+          } else {
+            setUser(createDefaultUser(session.user.id, session.user.email || ""));
+          }
         }
+        setIsLoading(false);
       } catch (e) {
         console.log("Erreur init auth:", e);
         setIsLoading(false);
@@ -49,22 +46,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        // Si on a déjà un utilisateur avec un prénom, on ne remet pas le profil vide
-        setUser(prev => {
-          if (prev && prev.id === session.user.id && prev.firstName) return prev;
-          return createDefaultUser(session.user.id, session.user.email || "");
-        });
-        setIsLoading(false);
-
-        // On charge le vrai profil
+        // On ne met pas isLoading(false) tout de suite !
+        // On charge d'abord le vrai profil
         const profile = await authService.findUserById(session.user.id);
         if (profile) {
-          setUser(prev => {
-            // On ne remplace que si le profil chargé est "plus complet" ou si on n'avait rien
-            if (prev && prev.firstName && !profile.firstName) return prev;
-            return profile;
-          });
+          setUser(profile);
+        } else {
+          // Si vraiment aucun profil en base, on met le défaut
+          setUser(createDefaultUser(session.user.id, session.user.email || ""));
         }
+        setIsLoading(false); // On débloque seulement ici
       } else {
         setUser(null);
         setIsLoading(false);
@@ -85,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     lastName: "",
     email: email,
     password: '',
-    role: 'proprietaire',
+    role: 'proprietaire', // Par défaut marchand, mais isLoading bloquera la redirection
     isPremium: false,
     status: 'active',
     subscriptionExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),

@@ -31,8 +31,12 @@ export const formatFullDate = (dateString: string): string => {
   });
 };
 
-export const getInitials = (firstName: string, lastName: string): string => {
-  const f = firstName.charAt(0).toUpperCase();
-  const l = lastName.charAt(0).toUpperCase();
-  return `${f}${l}`;
+export const getInitials = (firstName: any, lastName: any): string => {
+  try {
+    const f = (String(firstName || "?")).trim().charAt(0).toUpperCase();
+    const l = (String(lastName || "?")).trim().charAt(0).toUpperCase();
+    return `${f}${l}`;
+  } catch (e) {
+    return "??";
+  }
 };

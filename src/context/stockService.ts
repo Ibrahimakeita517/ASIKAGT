@@ -46,6 +46,10 @@ export const stockService = {
       payload: newProduct
     });
 
+    // 3. Lancement immédiat de la synchro
+    const { SyncManager } = require('../services/SyncManager');
+    SyncManager.sync();
+
     return newProduct;
   },
 
@@ -64,6 +68,10 @@ export const stockService = {
         type: 'UPDATE_PRODUCT',
         payload: { productId, updates }
       });
+
+      // Lancement immédiat de la synchro
+      const { SyncManager } = require('../services/SyncManager');
+      SyncManager.sync();
     }
   },
 
@@ -79,11 +87,21 @@ export const stockService = {
       type: 'UPDATE_PRODUCT', // On peut réutiliser ou créer un nouveau type
       payload: { productId, deleted: true } as any
     });
+
+    // Lancement immédiat de la synchro
+    const { SyncManager } = require('../services/SyncManager');
+    SyncManager.sync();
   },
 
-  // Mettre à jour la quantité (ex: après une vente)
+  // Mettre à jour la quantité localement uniquement (pour la réactivité UI)
   updateQuantity: async (productId: string, newQuantity: number) => {
-    await stockService.updateProduct(productId, { quantity: newQuantity });
+    const localProducts = await offlineService.getProducts();
+    const index = localProducts.findIndex(p => p.id === productId);
+
+    if (index !== -1) {
+      localProducts[index].quantity = newQuantity;
+      await offlineService.saveProducts(localProducts);
+    }
   },
 
   // Logger une entrée de stock

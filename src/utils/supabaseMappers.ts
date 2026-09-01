@@ -2,20 +2,38 @@ import { User, Transaction, Product, StockEntry } from '../models/types';
 
 // Mapper pour convertir les données utilisateur de Supabase (snake_case) vers notre type User (camelCase)
 export const mapSupabaseUserToAppUser = (supabaseUser: any): User => {
+  if (!supabaseUser) {
+    return {
+      id: '',
+      firstName: 'Utilisateur',
+      lastName: 'Inconnu',
+      email: '',
+      password: '',
+      role: 'proprietaire',
+      status: 'inactive',
+      isPremium: false,
+      subscriptionExpiry: new Date().toISOString(),
+      debt: 0,
+      createdAt: new Date().toISOString(),
+      messages: [],
+      phone: '',
+    };
+  }
+
   return {
-    id: supabaseUser.id,
-    firstName: supabaseUser.first_name,
-    lastName: supabaseUser.last_name,
-    email: supabaseUser.email,
-    password: '', // Le mot de passe n'est pas stocké dans la table public
+    id: supabaseUser.id || '',
+    firstName: supabaseUser.first_name || 'Sans',
+    lastName: supabaseUser.last_name || 'Nom',
+    email: supabaseUser.email || '',
+    password: '',
     role: supabaseUser.role || 'proprietaire',
-    status: supabaseUser.status,
+    status: supabaseUser.status || 'inactive',
     isPremium: supabaseUser.is_premium || false,
-    subscriptionExpiry: supabaseUser.subscription_expiry,
-    debt: supabaseUser.debt,
-    createdAt: supabaseUser.created_at,
-    messages: supabaseUser.messages || [], // Supabase jsonb peut être null
-    phone: supabaseUser.phone,
+    subscriptionExpiry: supabaseUser.subscription_expiry || new Date().toISOString(),
+    debt: supabaseUser.debt || 0,
+    createdAt: supabaseUser.created_at || new Date().toISOString(),
+    messages: supabaseUser.messages || [],
+    phone: supabaseUser.phone || '',
   };
 };
 

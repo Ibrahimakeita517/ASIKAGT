@@ -47,7 +47,10 @@ export const transactionService = {
       payload: newTransaction
     });
 
-    // 3. On ne bloque pas l'utilisateur, le SyncManager s'en chargera
+    // 3. Déclenchement immédiat de la synchro en arrière-plan
+    const { SyncManager } = require('../services/SyncManager');
+    SyncManager.sync();
+
     return newTransaction;
   },
 
@@ -78,6 +81,7 @@ export const transactionService = {
         type: 'UPDATE_DEBT',
         payload: { transactionId, paidAmount }
       });
+      SyncManager.sync();
     }
   },
 
@@ -93,6 +97,10 @@ export const transactionService = {
       type: 'DELETE_TRANSACTION',
       payload: { transactionId }
     });
+
+    // 3. Déclenchement immédiat de la synchro
+    const { SyncManager } = require('../services/SyncManager');
+    SyncManager.sync();
   },
 
   getFinancialSummary: async (userId: string): Promise<FinancialSummary> => {

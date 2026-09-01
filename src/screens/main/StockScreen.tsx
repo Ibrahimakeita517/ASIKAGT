@@ -72,37 +72,35 @@ const StockScreen = () => {
     }
 
     try {
-      setIsLoading(true);
+      const productData = {
+        name: newProduct.name,
+        purchasePrice: parseFloat(newProduct.purchasePrice.replace(',', '.')),
+        price: parseFloat(newProduct.price.replace(',', '.')),
+        quantity: parseInt(newProduct.quantity),
+        category: newProduct.category,
+        userId: user.id
+      };
+
       if (isEditing && editingProductId) {
         const oldProduct = products.find(p => p.id === editingProductId);
-        await stockService.updateProduct(editingProductId, {
-          name: newProduct.name,
-          purchasePrice: parseFloat(newProduct.purchasePrice.replace(',', '.')),
-          price: parseFloat(newProduct.price.replace(',', '.')),
-          quantity: parseInt(newProduct.quantity),
-          category: newProduct.category,
-        }, oldProduct);
-        Alert.alert("Succès", "Produit mis à jour");
+        stockService.updateProduct(editingProductId, productData, oldProduct);
+
+        // Mise à jour locale immédiate pour la vitesse
+        setProducts(prev => prev.map(p => p.id === editingProductId ? { ...p, ...productData } : p));
       } else {
-        await stockService.addProduct({
-          name: newProduct.name,
-          purchasePrice: parseFloat(newProduct.purchasePrice.replace(',', '.')),
-          price: parseFloat(newProduct.price.replace(',', '.')),
-          quantity: parseInt(newProduct.quantity),
-          category: newProduct.category,
-          userId: user.id
-        });
-        Alert.alert("Succès", "Produit ajouté au stock");
+        const tempId = Math.random().toString();
+        stockService.addProduct(productData);
+
+        // Ajout local immédiat pour la vitesse
+        setProducts(prev => [{ ...productData, id: tempId, createdAt: new Date().toISOString() } as any, ...prev]);
       }
 
       setShowModal(false);
       resetForm();
-      await loadData();
+      // On ne fait plus de loadData() pesant ici, l'UI est déjà à jour
     } catch (error) {
       console.error("Erreur opération produit:", error);
       Alert.alert("Erreur", "Impossible de sauvegarder le produit.");
-    } finally {
-      setIsLoading(false);
     }
   };
 

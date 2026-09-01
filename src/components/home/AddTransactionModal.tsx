@@ -162,19 +162,17 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         transactionData.status = transactionData.remainingAmount <= 0 ? 'paid' : 'partially_paid';
       }
 
-      await transactionService.addTransaction(transactionData);
+      // 1. Lancement de l'enregistrement en arrière-plan (sans bloquer l'UI)
+      transactionService.addTransaction(transactionData);
       
-      // 2. Si c'est une vente de produit en stock, déduire la quantité localement
-      // et ajouter une décrémentation relative à la file de synchro
+      // 2. Si c'est une vente de produit en stock, déduire la quantité
       if (type === 'sale' && selectedProductId) {
         const product = products.find(p => p.id === selectedProductId);
         if (product) {
           const newQty = product.quantity - qty;
-          // Mise à jour locale immédiate
-          await stockService.updateQuantity(selectedProductId, newQty > 0 ? newQty : 0);
+          stockService.updateQuantity(selectedProductId, newQty > 0 ? newQty : 0);
 
-          // Ajout de la décrémentation relative pour la synchro
-          await offlineService.addToSyncQueue({
+          offlineService.addToSyncQueue({
             id: uuidv4(),
             type: 'DECREMENT_STOCK',
             payload: { productId: selectedProductId, quantity: qty }
@@ -182,7 +180,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         }
       }
 
-      // Réinitialisation et fermeture
+      // 3. FERMETURE ET RAFRAÎCHISSEMENT IMMÉDIAT
+      // On n'attend pas la fin des sauvegardes pour rendre la main à l'utilisateur
       setAmount('');
       setDescription('');
       setCategory('');
@@ -193,11 +192,12 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setCustomerName('');
       setCustomerPhone('');
       setTotalAmount('');
+
       onSuccess();
-      handleClose();
+      onClose(); // Fermeture directe
     } catch (error) {
       console.error("Erreur lors de l'ajout:", error);
-      Alert.alert("Erreur", "Impossible d'enregistrer la transaction. Vérifiez votre connexion.");
+      Alert.alert("Erreur", "Un problème est survenu.");
     } finally {
       setLoading(false);
     }

@@ -8,26 +8,15 @@ export const ConnectivityBanner = () => {
   const { isOnline, pendingCount, isSyncing } = useSync();
   const { colors } = useTheme();
 
-  if (isOnline && pendingCount === 0 && !isSyncing) return null;
+  // ON NE MONTRE RIEN SI ON EST EN LIGNE
+  // Le système synchronisera tout seul en arrière-plan sans déranger
+  if (isOnline) return null;
 
-  let bannerColor = '#10B981'; // Vert (Online & Sync)
-  let textColor = '#FFF';
-  let statusText = '🟢 En ligne — Synchronisé';
-  let iconName: any = "cloud-done";
-
-  if (!isOnline) {
-    bannerColor = '#F59E0B'; // Orange (Offline)
-    statusText = `🟠 Hors ligne — ${pendingCount} vente(s) enregistrée(s) localement`;
-    iconName = "cloud-offline";
-  } else if (isSyncing) {
-    bannerColor = '#3B82F6'; // Bleu (Syncing)
-    statusText = '🔄 Synchronisation en cours...';
-    iconName = "sync";
-  } else if (pendingCount > 0) {
-    bannerColor = '#F59E0B';
-    statusText = `🟠 En ligne — ${pendingCount} opération(s) en attente`;
-    iconName = "cloud-upload";
-  }
+  // On ne montre le bandeau QUE si on est réellement déconnecté
+  const bannerColor = '#F59E0B'; // Orange
+  const textColor = '#FFF';
+  const statusText = `🟠 Mode Hors-ligne — ${pendingCount} opération(s) en attente`;
+  const iconName: any = "cloud-offline";
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: bannerColor }]}>

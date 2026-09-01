@@ -31,17 +31,22 @@ const AdminDashboard = () => {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const [allUsers, unreadCount] = await Promise.all([
+      if (!currentUser) return;
+
+      const [allUsersResult, unreadCountResult] = await Promise.allSettled([
         authService.getAllUsers(),
         notificationService.getAdminUnreadCount()
       ]);
 
-      setUnreadAdmin(unreadCount);
-      console.log("Utilisateurs trouvés dans la base:", allUsers.length);
+      const allUsers = allUsersResult.status === 'fulfilled' ? allUsersResult.value : [];
+      const unreadCount = unreadCountResult.status === 'fulfilled' ? unreadCountResult.value : 0;
 
-      // On affiche TOUS les comptes de la base de données SAUF vous-même
-      const filteredUsers = allUsers.filter(u => u.id !== currentUser?.id);
-      console.log("Utilisateurs après filtrage (sans vous):", filteredUsers.length);
+      setUnreadAdmin(unreadCount);
+
+      const usersList = Array.isArray(allUsers) ? allUsers : [];
+      const filteredUsers = usersList.filter(u => u && u.id && u.id !== currentUser?.id);
+
+      console.log(`[Admin] Marchands chargés: ${filteredUsers.length}`);
 
       const activeCount = filteredUsers.filter(u => u.status === 'active').length;
       const inactiveCount = filteredUsers.filter(u => u.status === 'inactive').length;
@@ -49,7 +54,7 @@ const AdminDashboard = () => {
       setUsers(filteredUsers);
       setStats({ active: activeCount, inactive: inactiveCount });
     } catch (error) {
-      console.error("Erreur lors de la récupération des utilisateurs:", error);
+      console.error("Erreur AdminDashboard fetchUsers:", error);
     }
   }, [currentUser]);
 
@@ -57,13 +62,14 @@ const AdminDashboard = () => {
     fetchUsers();
   }, [fetchUsers]);
 
-  // Ajouter ceci pour rafraîchir quand on revient sur l'écran
-  const { addListener } = navigation;
+  // Utiliser navigation.addListener de manière sécurisée
   useEffect(() => {
-    const unsubscribe = addListener('focus', () => {
-      fetchUsers();
-    });
-    return unsubscribe;
+    if (navigation && typeof navigation.addListener === 'function') {
+      const unsubscribe = navigation.addListener('focus', () => {
+        fetchUsers();
+      });
+      return unsubscribe;
+    }
   }, [navigation, fetchUsers]);
 
   const onRefresh = async () => {
@@ -86,6 +92,9 @@ const AdminDashboard = () => {
           style: user.status === 'active' ? "destructive" : "default",
           onPress: async () => {
             await authService.updateUserStatus(user.id, newStatus);
+            if (currentUser) {
+              await adminService.logActivity(currentUser.id, `${actionLabel} le compte de ${user.firstName} ${user.lastName}`, user.id, `${user.firstName} ${user.lastName}`);
+            }
             fetchUsers();
           }
         }
@@ -107,6 +116,9 @@ const AdminDashboard = () => {
           onPress: async () => {
             try {
               await authService.updateUserPremium(user.id, newStatus);
+              if (currentUser) {
+                await adminService.logActivity(currentUser.id, `${actionLabel} pour ${user.firstName}`, user.id, user.firstName);
+              }
               fetchUsers();
             } catch (e) {
               Alert.alert("Erreur", "Impossible de mettre à jour le statut Premium.");
@@ -117,90 +129,106 @@ const AdminDashboard = () => {
     );
   };
 
-  const renderUserItem = ({ item }: { item: User }) => (
-    <Card style={styles.userCard}>
-      <View style={styles.cardHeader}>
-        <Avatar firstName={item.firstName} lastName={item.lastName} size={50} />
-        <View style={styles.userInfo}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={[styles.userName, { color: colors.text }]}>{item.firstName} {item.lastName}</Text>
-            {item.isPremium && (
-              <Ionicons name="star" size={16} color="#FFD700" style={{ marginLeft: 5 }} />
-            )}
+  const renderUserItem = ({ item }: { item: User }) => {
+    if (!item) return null;
+
+    const fName = item.firstName || 'Sans';
+    const lName = item.lastName || 'Nom';
+    const email = item.email || 'Pas d\'email';
+
+    return (
+      <Card style={styles.userCard}>
+        <View style={styles.cardHeader}>
+          <Avatar firstName={fName} lastName={lName} size={50} />
+          <View style={styles.userInfo}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[styles.userName, { color: colors.text }]}>{fName} {lName}</Text>
+              {item.isPremium && (
+                <Ionicons name="star" size={16} color="#FFD700" style={{ marginLeft: 5 }} />
+              )}
+            </View>
+            <Text style={[styles.userEmail, { color: colors.textMuted }]}>{email}</Text>
           </View>
-          <Text style={[styles.userEmail, { color: colors.textMuted }]}>{item.email}</Text>
-        </View>
-        <View style={[
-          styles.statusBadge, 
-          { backgroundColor: item.status === 'active' ? colors.secondary + '20' : colors.danger + '20' }
-        ]}>
-          <Text style={[
-            styles.statusText, 
-            { color: item.status === 'active' ? colors.secondary : colors.danger }
+          <View style={[
+            styles.statusBadge,
+            { backgroundColor: item.status === 'active' ? colors.secondary + '20' : colors.danger + '20' }
           ]}>
-            {item.status === 'active' ? 'Actif' : 'Inactif'}
-          </Text>
+            <Text style={[
+              styles.statusText,
+              { color: item.status === 'active' ? colors.secondary : colors.danger }
+            ]}>
+              {item.status === 'active' ? 'Actif' : 'Inactif'}
+            </Text>
+          </View>
         </View>
-      </View>
 
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-      <View style={styles.cardFooter}>
-        <View>
-          <Text style={[styles.debtLabel, { color: colors.textMuted }]}>{item.isPremium ? "Compte Premium" : "Compte Standard"}</Text>
-          <Text style={[
-            styles.debtAmount, 
-            { color: item.isPremium ? colors.primary : colors.text }
-          ]}>
-            {item.isPremium ? 'PREMIUM' : 'STANDARD'}
-          </Text>
+        <View style={styles.cardFooter}>
+          <View>
+            <Text style={[styles.debtLabel, { color: colors.textMuted }]}>{item.isPremium ? "Compte Premium" : "Compte Standard"}</Text>
+            <Text style={[
+              styles.debtAmount,
+              { color: item.isPremium ? colors.primary : colors.text }
+            ]}>
+              {item.isPremium ? 'PREMIUM' : 'STANDARD'}
+            </Text>
+          </View>
+
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={[styles.actionBtn, { borderColor: item.isPremium ? '#FFD700' : colors.border }]}
+              onPress={() => handleTogglePremium(item)}
+            >
+              <Ionicons
+                name={item.isPremium ? "star" : "star-outline"}
+                size={20}
+                color={item.isPremium ? "#FFD700" : colors.textMuted}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, { borderColor: colors.border, marginLeft: 10 }]}
+              onPress={() => handleToggleStatus(item)}
+            >
+              <Ionicons
+                name={item.status === 'active' ? "person-remove" : "person-add"}
+                size={20}
+                color={item.status === 'active' ? colors.danger : colors.secondary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, { borderColor: colors.border, marginLeft: 10 }]}
+              onPress={() => navigation.navigate('AccountDetail', { userId: item.id })}
+            >
+              <Ionicons name="eye" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
         </View>
-        
-        <View style={styles.actions}>
-          <TouchableOpacity 
-            style={[styles.actionBtn, { borderColor: item.isPremium ? '#FFD700' : colors.border }]}
-            onPress={() => handleTogglePremium(item)}
-          >
-            <Ionicons
-              name={item.isPremium ? "star" : "star-outline"}
-              size={20}
-              color={item.isPremium ? "#FFD700" : colors.textMuted}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionBtn, { borderColor: colors.border, marginLeft: 10 }]}
-            onPress={() => handleToggleStatus(item)}
-          >
-            <Ionicons 
-              name={item.status === 'active' ? "person-remove" : "person-add"} 
-              size={20} 
-              color={item.status === 'active' ? colors.danger : colors.secondary} 
-            />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.actionBtn, { borderColor: colors.border, marginLeft: 10 }]}
-            onPress={() => navigation.navigate('AccountDetail', { userId: item.id })}
-          >
-            <Ionicons name="eye" size={20} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Card>
-  );
+      </Card>
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Tableau de bord Admin</Text>
         <View style={styles.statsRow}>
-          <View style={[styles.statBox, { backgroundColor: colors.surface }]}>
+          <TouchableOpacity
+            style={[styles.statBox, { backgroundColor: colors.surface }]}
+            onPress={() => navigation.navigate('AdminReports')}
+          >
             <Text style={[styles.statValue, { color: colors.secondary }]}>{stats.active}</Text>
             <Text style={[styles.statLabel, { color: colors.textMuted }]}>Comptes Actifs</Text>
-          </View>
-          <View style={[styles.statBox, { backgroundColor: colors.surface, marginLeft: 15 }]}>
+            <Ionicons name="stats-chart" size={16} color={colors.textMuted} style={{ marginTop: 5 }} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.statBox, { backgroundColor: colors.surface, marginLeft: 15 }]}
+            onPress={() => navigation.navigate('ActivityLogs')}
+          >
             <Text style={[styles.statValue, { color: colors.danger }]}>{stats.inactive}</Text>
             <Text style={[styles.statLabel, { color: colors.textMuted }]}>Comptes Inactifs</Text>
-          </View>
+            <Ionicons name="list" size={16} color={colors.textMuted} style={{ marginTop: 5 }} />
+          </TouchableOpacity>
         </View>
       </View>
 

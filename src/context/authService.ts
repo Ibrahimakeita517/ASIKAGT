@@ -7,12 +7,25 @@ const USERS_KEY = '@asika_users';
 
 export const authService = {
   getAllUsers: async (): Promise<User[]> => {
-    const { data, error } = await supabase.from('users').select('*');
-    if (error) {
-      console.error('Erreur getAllUsers:', error.message);
-      throw error;
+    try {
+      const { data, error } = await supabase.from('users').select('*');
+      if (error) throw error;
+
+      const users = (data || []).map(u => mapSupabaseUserToAppUser(u));
+      // Persistance locale pour l'admin
+      await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
+      return Array.isArray(users) ? users : [];
+    } catch (error) {
+      console.log('Mode hors ligne (Admin): Chargement des utilisateurs locaux');
+      try {
+        const localData = await AsyncStorage.getItem(USERS_KEY);
+        if (!localData) return [];
+        const parsed = JSON.parse(localData);
+        return Array.isArray(parsed) ? parsed.map(u => mapSupabaseUserToAppUser(u)) : [];
+      } catch (e) {
+        return [];
+      }
     }
-    return (data || []).map(mapSupabaseUserToAppUser);
   },
 
   saveUser: async (user: User): Promise<void> => {
