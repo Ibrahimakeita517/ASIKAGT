@@ -56,7 +56,7 @@ export const transactionService = {
 
   // ... (Je vais implémenter le reste dans la suite)
 
-  updateDebt: async (transactionId: string, paidAmount: number): Promise<void> => {
+  updateDebt: async (transactionId: string, paidAmount: number): Promise<Transaction | null> => {
     // 1. Mise à jour locale immédiate
     const localTransactions = await offlineService.getTransactions();
     const transactionIndex = localTransactions.findIndex(t => t.id === transactionId);
@@ -66,13 +66,14 @@ export const transactionService = {
       const newRemaining = (current.remainingAmount || 0) - paidAmount;
       const newStatus = newRemaining <= 0 ? 'paid' : 'partially_paid';
 
-      localTransactions[transactionIndex] = {
+      const updatedTransaction: Transaction = {
         ...current,
         remainingAmount: newRemaining > 0 ? newRemaining : 0,
         amount: current.amount + paidAmount,
         status: newStatus as any
       };
 
+      localTransactions[transactionIndex] = updatedTransaction;
       await offlineService.saveTransactions(localTransactions);
 
       // 2. Ajout à la file de synchronisation
@@ -81,8 +82,18 @@ export const transactionService = {
         type: 'UPDATE_DEBT',
         payload: { transactionId, paidAmount }
       });
-      SyncManager.sync();
+
+      // 3. Déclenchement de la synchro en arrière-plan (sans bloquer)
+      try {
+        const { SyncManager } = require('../services/SyncManager');
+        SyncManager.sync();
+      } catch (e) {
+        console.log("Erreur synchro (sera re-tentée):", e);
+      }
+
+      return updatedTransaction;
     }
+    return null;
   },
 
   deleteTransaction: async (transactionId: string): Promise<void> => {

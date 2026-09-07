@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, ScrollView, Alert, Platform } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../models/ThemeContext';
 import { transactionService } from '../../context/transactionService';
+import { receiptService } from '../../services/receiptService';
 import { Transaction } from '../../models/types';
 import { formatCurrency, formatRelativeDate } from '../../context/formatters';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -24,6 +25,8 @@ const HistoryScreen = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [customerWhatsApp, setCustomerWhatsApp] = useState('');
 
   useEffect(() => {
     fetchTransactions();
@@ -73,21 +76,50 @@ const HistoryScreen = () => {
   );
 
   const totalAmount = filteredTransactions.reduce((sum, t) =>
-    t.type === 'sale' ? sum + t.amount : sum - t.amount, 0
+    (t.type === 'sale' || t.type === 'debt') ? sum + t.amount : sum - t.amount, 0
   );
+
+  const handlePrint = async () => {
+    if (!selectedTransaction) return;
+    try {
+      await receiptService.print(selectedTransaction, user);
+    } catch (error) {
+      console.error("Erreur Impression:", error);
+    }
+  };
+
+  const handleShareWhatsApp = async () => {
+    if (!selectedTransaction || !customerWhatsApp) {
+      Alert.alert("Erreur", "Veuillez entrer le numéro de téléphone.");
+      return;
+    }
+    try {
+      await receiptService.shareToWhatsApp(selectedTransaction, user, customerWhatsApp);
+      setShowWhatsAppModal(false);
+    } catch (error) {
+      console.error("Erreur WhatsApp:", error);
+    }
+  };
 
   const handleAddPayment = async () => {
     if (!selectedTransaction || !paymentAmount || isNaN(Number(paymentAmount))) return;
 
     setLoading(true);
     try {
-      await transactionService.updateDebt(selectedTransaction.id, Number(paymentAmount));
-      // Recharger les données
-      await fetchTransactions();
+      const amountToPay = Number(paymentAmount);
+      const updated = await transactionService.updateDebt(selectedTransaction.id, amountToPay);
+
+      if (updated) {
+        setTransactions(prev => prev.map(t => t.id === updated.id ? updated : t));
+        if (activeTab === 'debt' && updated.status === 'paid') {
+          setTransactions(prev => prev.filter(t => t.id !== updated.id));
+        }
+      }
       setSelectedTransaction(null);
       setPaymentAmount('');
     } catch (e) {
       console.error("Erreur paiement dette:", e);
+      Alert.alert("Erreur", "Impossible d'enregistrer le versement.");
     } finally {
       setLoading(false);
     }
@@ -260,7 +292,10 @@ const HistoryScreen = () => {
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Détails de l'opération</Text>
-              <TouchableOpacity onPress={() => setSelectedTransaction(null)}>
+              <TouchableOpacity onPress={() => {
+                setSelectedTransaction(null);
+                setPaymentAmount(''); // Vider le champ quand on ferme
+              }}>
                 <Ionicons name="close-circle" size={28} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -270,7 +305,7 @@ const HistoryScreen = () => {
                 <Card style={styles.detailCard}>
                   <View style={styles.detailRow}>
                     <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Montant</Text>
-                    <Text style={[styles.detailValue, { color: selectedTransaction.type === 'sale' ? colors.secondary : colors.danger, fontSize: 24 }]}>
+                    <Text style={[styles.detailValue, { color: (selectedTransaction.type === 'sale' || selectedTransaction.type === 'debt') ? colors.secondary : colors.danger, fontSize: 24 }]}>
                       {formatCurrency(selectedTransaction.amount)}
                     </Text>
                   </View>
@@ -295,6 +330,27 @@ const HistoryScreen = () => {
                   </View>
 
 
+
+                  <View style={styles.actionButtonsRow}>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: colors.primary + '15' }]}
+                      onPress={handlePrint}
+                    >
+                      <Ionicons name="print" size={22} color={colors.primary} />
+                      <Text style={[styles.actionBtnText, { color: colors.primary }]}>Imprimer</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: '#25D366' + '15' }]}
+                      onPress={() => {
+                        setCustomerWhatsApp(selectedTransaction.customerPhone || '');
+                        setShowWhatsAppModal(true);
+                      }}
+                    >
+                      <Ionicons name="logo-whatsapp" size={22} color="#25D366" />
+                      <Text style={[styles.actionBtnText, { color: '#25D366' }]}>WhatsApp</Text>
+                    </TouchableOpacity>
+                  </View>
 
                   {selectedTransaction.type === 'debt' && (
                     <>
@@ -337,6 +393,38 @@ const HistoryScreen = () => {
                 <Button title="Fermer" onPress={() => setSelectedTransaction(null)} style={{ marginTop: 20 }} />
               </ScrollView>
             )}
+          </View>
+        </View>
+      </Modal>
+      {/* Modal WhatsApp */}
+      <Modal visible={showWhatsAppModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.whatsappModal, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text, marginBottom: 15 }]}>Envoyer le reçu</Text>
+            <Text style={[styles.detailLabel, { color: colors.textMuted, marginBottom: 10 }]}>Numéro WhatsApp du client :</Text>
+            <TextInput
+              style={[styles.paymentInput, { color: colors.text, borderColor: colors.border }]}
+              placeholder="Ex: 771234567"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="phone-pad"
+              value={customerWhatsApp}
+              onChangeText={setCustomerWhatsApp}
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+              <TouchableOpacity
+                style={[styles.smallBtn, { backgroundColor: colors.border }]}
+                onPress={() => setShowWhatsAppModal(false)}
+              >
+                <Text style={{ color: colors.text }}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.smallBtn, { backgroundColor: '#25D366' }]}
+                onPress={handleShareWhatsApp}
+              >
+                <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Envoyer</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -387,6 +475,11 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: '#eee', marginBottom: 15 },
   paymentSection: { marginTop: 20, borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 20 },
   paymentInput: { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 10, fontSize: 16 },
+  actionButtonsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, gap: 10 },
+  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12 },
+  actionBtnText: { marginLeft: 8, fontWeight: 'bold', fontSize: 15 },
+  whatsappModal: { width: '80%', padding: 20, borderRadius: 20 },
+  smallBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10 },
 });
 
 export default HistoryScreen;
