@@ -150,19 +150,19 @@ const HomeScreen = () => {
             style={[styles.transactionItem, { backgroundColor: colors.surface }]}
             onPress={() => setSelectedTransaction(t)}
           >
-            <View style={[styles.iconBox, { backgroundColor: t.type === 'sale' ? colors.secondary + '20' : colors.danger + '20' }]}>
+            <View style={[styles.iconBox, { backgroundColor: (t.type === 'sale' || t.type === 'debt') ? colors.secondary + '20' : colors.danger + '20' }]}>
               <Ionicons 
-                name={t.type === 'sale' ? "arrow-up" : "arrow-down"} 
+                name={(t.type === 'sale' || t.type === 'debt') ? "arrow-up" : "arrow-down"}
                 size={20} 
-                color={t.type === 'sale' ? colors.secondary : colors.danger} 
+                color={(t.type === 'sale' || t.type === 'debt') ? colors.secondary : colors.danger}
               />
             </View>
             <View style={styles.transDetails}>
               <Text style={[styles.transDesc, { color: colors.text }]} numberOfLines={1}>{t.description}</Text>
               <Text style={[styles.transDate, { color: colors.textMuted }]}>{formatRelativeDate(t.date)}</Text>
             </View>
-            <Text style={[styles.transAmount, { color: t.type === 'sale' ? colors.secondary : colors.danger }]}>
-              {t.type === 'sale' ? '+' : '-'} {formatCurrency(t.amount)}
+            <Text style={[styles.transAmount, { color: (t.type === 'sale' || t.type === 'debt') ? colors.secondary : colors.danger }]}>
+              {(t.type === 'sale' || t.type === 'debt') ? '+' : '-'} {formatCurrency(t.amount)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -195,7 +195,7 @@ const HomeScreen = () => {
                 <Card style={styles.detailCard}>
                   <View style={styles.detailRow}>
                     <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Montant</Text>
-                    <Text style={[styles.detailValue, { color: selectedTransaction.type === 'sale' ? colors.secondary : colors.danger, fontSize: 24 }]}>
+                    <Text style={[styles.detailValue, { color: (selectedTransaction.type === 'sale' || selectedTransaction.type === 'debt') ? colors.secondary : colors.danger, fontSize: 24 }]}>
                       {formatCurrency(selectedTransaction.amount)}
                     </Text>
                   </View>
