@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, ScrollView, Alert, Platform } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../models/ThemeContext';
@@ -9,6 +9,7 @@ import { formatCurrency, formatRelativeDate } from '../../context/formatters';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
+import { useFocusEffect } from '@react-navigation/native';
 
 const HistoryScreen = () => {
   const { user } = useAuth();
@@ -28,11 +29,7 @@ const HistoryScreen = () => {
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [customerWhatsApp, setCustomerWhatsApp] = useState('');
 
-  useEffect(() => {
-    fetchTransactions();
-  }, [user, activeTab, filterMode, selectedDate]);
-
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
     if (!user) return;
     const data = await transactionService.getTransactions(user.id);
 
@@ -68,7 +65,13 @@ const HistoryScreen = () => {
     }
 
     setTransactions(filtered);
-  };
+  }, [user, activeTab, filterMode, selectedDate]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchTransactions();
+    }, [fetchTransactions])
+  );
 
   const filteredTransactions = transactions.filter(t => 
     t.description.toLowerCase().includes(search.toLowerCase()) ||
@@ -90,7 +93,9 @@ const HistoryScreen = () => {
 
   const handleShareWhatsApp = async () => {
     if (!selectedTransaction || !customerWhatsApp) {
-      Alert.alert("Erreur", "Veuillez entrer le numéro de téléphone.");
+      const msg = "Veuillez entrer le numéro de téléphone.";
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert("Erreur", msg);
       return;
     }
     try {
@@ -119,7 +124,9 @@ const HistoryScreen = () => {
       setPaymentAmount('');
     } catch (e) {
       console.error("Erreur paiement dette:", e);
-      Alert.alert("Erreur", "Impossible d'enregistrer le versement.");
+      const msg = "Impossible d'enregistrer le versement.";
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert("Erreur", msg);
     } finally {
       setLoading(false);
     }
@@ -173,6 +180,47 @@ const HistoryScreen = () => {
         </View>
       </TouchableOpacity>
     );
+  };
+
+  const handleDeleteTransaction = async () => {
+    if (!selectedTransaction) return;
+
+    const confirmDelete = () => {
+      return new Promise((resolve) => {
+        if (Platform.OS === 'web') {
+          const result = window.confirm("Voulez-vous vraiment supprimer cette transaction ? Cette action restaurera également le stock si applicable.");
+          resolve(result);
+        } else {
+          Alert.alert(
+            "Supprimer l'opération",
+            "Voulez-vous vraiment supprimer cette transaction ? Cette action restaurera également le stock si applicable.",
+            [
+              { text: "Annuler", style: "cancel", onPress: () => resolve(false) },
+              { text: "Supprimer", style: "destructive", onPress: () => resolve(true) }
+            ]
+          );
+        }
+      });
+    };
+
+    const shouldDelete = await confirmDelete();
+    if (!shouldDelete) return;
+
+    try {
+      setLoading(true);
+      await transactionService.deleteTransaction(selectedTransaction.id);
+
+      // Mise à jour locale de la liste
+      setTransactions(prev => prev.filter(t => t.id !== selectedTransaction.id));
+      setSelectedTransaction(null);
+    } catch (e) {
+      console.error("Erreur suppression transaction:", e);
+      const msg = "Impossible de supprimer la transaction.";
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert("Erreur", msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const months = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
@@ -389,6 +437,14 @@ const HistoryScreen = () => {
                       )}
                     </>
                   )}
+
+                  <TouchableOpacity
+                    style={[styles.deleteBtn, { marginTop: 20 }]}
+                    onPress={handleDeleteTransaction}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                    <Text style={[styles.deleteBtnText, { color: colors.danger, marginLeft: 8 }]}>Supprimer cette opération</Text>
+                  </TouchableOpacity>
                 </Card>
                 <Button title="Fermer" onPress={() => setSelectedTransaction(null)} style={{ marginTop: 20 }} />
               </ScrollView>
@@ -480,6 +536,8 @@ const styles = StyleSheet.create({
   actionBtnText: { marginLeft: 8, fontWeight: 'bold', fontSize: 15 },
   whatsappModal: { width: '80%', padding: 20, borderRadius: 20 },
   smallBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10 },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: '#ff4444' },
+  deleteBtnText: { fontWeight: '600', fontSize: 14 },
 });
 
 export default HistoryScreen;

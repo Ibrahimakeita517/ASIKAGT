@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { SyncManager } from '../services/SyncManager';
 import { offlineService } from '../services/offlineService';
 import { supabase } from '../services/supabase';
+import { useAuth } from './AuthContext';
 
 interface SyncContextType {
   isOnline: boolean;
@@ -16,21 +17,20 @@ interface SyncContextType {
 const SyncContext = createContext<SyncContextType | undefined>(undefined);
 
 export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
-  // Fonction pour vérifier réellement si Supabase est joignable
   const checkRealConnection = async () => {
     if (Platform.OS === 'web' && !navigator.onLine) {
       setIsOnline(false);
       return false;
     }
     try {
-      // On tente un micro-appel à Supabase pour vérifier le vrai accès internet
       const { error } = await supabase.from('users').select('id').limit(1);
-      const online = !error || error.code !== 'PGRST301'; // PGRST301 est souvent lié à l'auth, mais indique que le serveur a répondu
+      const online = !error || error.code !== 'PGRST301';
       setIsOnline(true);
       return true;
     } catch (e) {
@@ -40,11 +40,15 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    if (!user) {
+      setPendingCount(0);
+      return;
+    }
+
     const updatePendingCount = async () => {
-      const queue = await offlineService.getSyncQueue();
+      const queue = await offlineService.getSyncQueue(user.id);
       setPendingCount(queue.length);
 
-      // AUTO-SYNC : Si on a des trucs en attente et qu'on est en ligne, on synchronise !
       if (queue.length > 0 && isOnline && !isSyncing) {
         syncNow();
       }
@@ -54,37 +58,17 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const interval = setInterval(async () => {
       await checkRealConnection();
       await updatePendingCount();
-    }, 5000); // Vérifie toutes les 5 secondes
+    }, 5000);
 
-    if (Platform.OS === 'web') {
-      const handleOnline = () => {
-        setIsOnline(true);
-        syncNow(); // Synchro immédiate quand le réseau revient
-      };
-      const handleOffline = () => setIsOnline(false);
-
-      window.addEventListener('online', handleOnline);
-      window.addEventListener('offline', handleOffline);
-      window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        setDeferredPrompt(e);
-      });
-
-      return () => {
-        window.removeEventListener('online', handleOnline);
-        window.removeEventListener('offline', handleOffline);
-        clearInterval(interval);
-      };
-    }
     return () => clearInterval(interval);
-  }, [isOnline]); // On rajoute isOnline dans les dépendances pour réagir au changement
+  }, [user, isOnline]);
 
   const syncNow = async () => {
-    if (isSyncing) return;
+    if (isSyncing || !user) return;
     setIsSyncing(true);
     try {
-      await SyncManager.sync();
-      const queue = await offlineService.getSyncQueue();
+      await SyncManager.sync(user.id);
+      const queue = await offlineService.getSyncQueue(user.id);
       setPendingCount(queue.length);
     } catch (e) {
       console.log("Echec synchro auto");
@@ -93,13 +77,12 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // ... reste du code (installApp, etc.)
   const installApp = async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setDeferredPrompt(null);
-      }
+      if (outcome === 'accepted') setDeferredPrompt(null);
     }
   };
 

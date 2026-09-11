@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTheme } from '../../models/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -7,6 +7,7 @@ import { formatCurrency } from '../../context/formatters';
 import { Product, StockEntry } from '../../models/types';
 import { stockService } from '../../context/stockService';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 
 const StockScreen = () => {
   const { colors } = useTheme();
@@ -14,14 +15,13 @@ const StockScreen = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  // const [isLocked, setIsLocked] = useState(true);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [historyFilter, setHistoryFilter] = useState<'all' | 'month'>('all');
 
-  // États pour le modal d'ajout/édition
+  // États pour la gestion des modales, filtres et formulaires
   const [showModal, setShowModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [historyFilter, setHistoryFilter] = useState('all');
   const [newProduct, setNewProduct] = useState({
     name: '',
     purchasePrice: '',
@@ -30,20 +30,14 @@ const StockScreen = () => {
     category: 'Général'
   });
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
     try {
       const ownerId = user.id;
-      // On charge les produits en priorité
       const productsData = await stockService.getProducts(ownerId);
       setProducts(productsData || []);
 
-      // On essaie de charger l'historique séparément
       try {
         const entriesData = await stockService.getStockEntries(ownerId);
         setStockEntries(entriesData || []);
@@ -52,11 +46,16 @@ const StockScreen = () => {
       }
     } catch (error: any) {
       console.error("Erreur chargement stock:", error);
-      Alert.alert("Erreur de chargement", error.message || "Problème de connexion à la base de données");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   // const toggleLock = () => {
   //   // setIsLocked(!isLocked);
@@ -67,7 +66,9 @@ const StockScreen = () => {
 
     // Validation des champs
     if (!newProduct.name || !newProduct.price || !newProduct.quantity || !newProduct.purchasePrice) {
-      Alert.alert("Champs manquants", "Veuillez remplir tous les champs : Nom, Prix Achat, Prix Vente et Quantité.");
+      const msg = "Veuillez remplir tous les champs : Nom, Prix Achat, Prix Vente et Quantité.";
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert("Champs manquants", msg);
       return;
     }
 
@@ -82,22 +83,17 @@ const StockScreen = () => {
       };
 
       if (isEditing && editingProductId) {
-        const oldProduct = products.find(p => p.id === editingProductId);
-        stockService.updateProduct(editingProductId, productData, oldProduct);
-
-        // Mise à jour locale immédiate pour la vitesse
+        await stockService.updateProduct(editingProductId, productData, user.id);
+        // Mise à jour locale avec les nouvelles données
         setProducts(prev => prev.map(p => p.id === editingProductId ? { ...p, ...productData } : p));
       } else {
-        const tempId = Math.random().toString();
-        stockService.addProduct(productData);
-
-        // Ajout local immédiat pour la vitesse
-        setProducts(prev => [{ ...productData, id: tempId, createdAt: new Date().toISOString() } as any, ...prev]);
+        // On récupère le vrai produit avec son ID définitif
+        const addedProduct = await stockService.addProduct(productData);
+        setProducts(prev => [addedProduct, ...prev]);
       }
 
       setShowModal(false);
       resetForm();
-      // On ne fait plus de loadData() pesant ici, l'UI est déjà à jour
     } catch (error) {
       console.error("Erreur opération produit:", error);
       Alert.alert("Erreur", "Impossible de sauvegarder le produit.");
@@ -107,31 +103,44 @@ const StockScreen = () => {
   const handleDeleteProduct = async () => {
     if (!editingProductId) return;
 
-    Alert.alert(
-      "Supprimer le produit",
-      "Voulez-vous vraiment supprimer ce produit ? Cette action est irréversible.",
-      [
-        { text: "Annuler", style: "cancel" },
-        {
-          text: "Supprimer",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setIsLoading(true);
-              await stockService.deleteProduct(editingProductId);
-              setShowModal(false);
-              resetForm();
-              await loadData();
-              Alert.alert("Succès", "Produit supprimé");
-            } catch (error) {
-              Alert.alert("Erreur", "Impossible de supprimer le produit");
-            } finally {
-              setIsLoading(false);
-            }
-          }
+    const confirmDelete = () => {
+      return new Promise((resolve) => {
+        if (Platform.OS === 'web') {
+          const result = window.confirm("Voulez-vous vraiment supprimer ce produit ? Cette action est irréversible.");
+          resolve(result);
+        } else {
+          Alert.alert(
+            "Supprimer le produit",
+            "Voulez-vous vraiment supprimer ce produit ? Cette action est irréversible.",
+            [
+              { text: "Annuler", style: "cancel", onPress: () => resolve(false) },
+              { text: "Supprimer", style: "destructive", onPress: () => resolve(true) }
+            ]
+          );
         }
-      ]
-    );
+      });
+    };
+
+    const shouldDelete = await confirmDelete();
+    if (!shouldDelete) return;
+
+    try {
+      setIsLoading(true);
+
+      // 1. Suppression dans le service avec l'ID utilisateur pour la sécurité
+      await stockService.deleteProduct(editingProductId, user.id);
+
+      // 2. Mise à jour immédiate de la liste locale
+      setProducts(prev => prev.filter(p => p.id !== editingProductId));
+
+      setShowModal(false);
+      resetForm();
+    } catch (error) {
+      console.error("Erreur suppression:", error);
+      Alert.alert("Erreur", "Impossible de supprimer le produit");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const resetForm = () => {

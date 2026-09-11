@@ -1,7 +1,7 @@
 {
   "name": "asika",
   "version": "1.0.0",
-  "main": "expo/AppEntry.js",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -9,8 +9,8 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@expo/metro-runtime": "~6.1.2",
-    "@expo/vector-icons": "^14.0.2",
+    "@expo/metro-runtime": "*",
+    "@expo/vector-icons": "^15.0.0",
     "@react-native-async-storage/async-storage": "1.23.1",
     "@react-navigation/bottom-tabs": "^6.5.20",
     "@react-navigation/native": "^6.1.17",
@@ -25,8 +25,8 @@
     "expo-splash-screen": "~0.29.11",
     "expo-status-bar": "~2.1.0",
     "localforage": "^1.10.0",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "react-native": "0.78.2",
     "react-native-chart-kit": "^6.12.0",
     "react-native-gesture-handler": "~2.20.2",
@@ -41,9 +41,9 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/localforage": "^0.0.33",
-    "@types/react": "^19.0.0",
+    "@types/react": "~18.2.0",
     "@types/uuid": "^9.0.8",
-    "babel-preset-expo": "~12.0.0",
+    "babel-preset-expo": "~54.0.0",
     "typescript": "~5.3.3"
   },
   "private": true

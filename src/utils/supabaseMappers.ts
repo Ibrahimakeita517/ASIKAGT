@@ -73,6 +73,8 @@ export const mapSupabaseTransactionToAppTransaction = (supabaseTransaction: any)
     totalAmount: supabaseTransaction.total_amount,
     remainingAmount: supabaseTransaction.remaining_amount,
     status: supabaseTransaction.status,
+    productId: supabaseTransaction.product_id,
+    quantity: supabaseTransaction.quantity,
   };
 };
 
@@ -94,6 +96,8 @@ export const mapAppTransactionToSupabaseInsert = (t: Transaction) => {
     total_amount: t.totalAmount,
     remaining_amount: t.remainingAmount,
     status: t.status,
+    product_id: t.productId,
+    quantity: t.quantity,
   };
 };
 

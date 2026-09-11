@@ -1,11 +1,11 @@
 import { storage } from './storage';
 import { Transaction, Product } from '../models/types';
 
-const KEYS = {
-  TRANSACTIONS: '@asika_offline_transactions',
-  PRODUCTS: '@asika_offline_products',
-  SYNC_QUEUE: '@asika_sync_queue'
-};
+const getKeys = (userId: string) => ({
+  TRANSACTIONS: `@asika_${userId}_transactions`,
+  PRODUCTS: `@asika_${userId}_products`,
+  SYNC_QUEUE: `@asika_${userId}_sync_queue`
+});
 
 export interface SyncItem {
   id: string;
@@ -16,37 +16,44 @@ export interface SyncItem {
 
 export const offlineService = {
   // --- Stockage des données ---
-  saveTransactions: async (transactions: Transaction[]) => {
-    await storage.setItem(KEYS.TRANSACTIONS, transactions);
+  saveTransactions: async (userId: string, transactions: Transaction[]) => {
+    const keys = getKeys(userId);
+    await storage.setItem(keys.TRANSACTIONS, transactions);
   },
 
-  getTransactions: async (): Promise<Transaction[]> => {
-    return await storage.getItem(KEYS.TRANSACTIONS) || [];
+  getTransactions: async (userId: string): Promise<Transaction[]> => {
+    const keys = getKeys(userId);
+    return await storage.getItem(keys.TRANSACTIONS) || [];
   },
 
-  saveProducts: async (products: Product[]) => {
-    await storage.setItem(KEYS.PRODUCTS, products);
+  saveProducts: async (userId: string, products: Product[]) => {
+    const keys = getKeys(userId);
+    await storage.setItem(keys.PRODUCTS, products);
   },
 
-  getProducts: async (): Promise<Product[]> => {
-    return await storage.getItem(KEYS.PRODUCTS) || [];
+  getProducts: async (userId: string): Promise<Product[]> => {
+    const keys = getKeys(userId);
+    return await storage.getItem(keys.PRODUCTS) || [];
   },
 
   // --- Gestion de la file de synchronisation ---
-  addToSyncQueue: async (item: Omit<SyncItem, 'timestamp'>) => {
-    const queue = await offlineService.getSyncQueue();
+  addToSyncQueue: async (userId: string, item: Omit<SyncItem, 'timestamp'>) => {
+    const keys = getKeys(userId);
+    const queue = await offlineService.getSyncQueue(userId);
     const newItem: SyncItem = { ...item, timestamp: Date.now() };
     queue.push(newItem);
-    await storage.setItem(KEYS.SYNC_QUEUE, queue);
+    await storage.setItem(keys.SYNC_QUEUE, queue);
   },
 
-  getSyncQueue: async (): Promise<SyncItem[]> => {
-    return await storage.getItem(KEYS.SYNC_QUEUE) || [];
+  getSyncQueue: async (userId: string): Promise<SyncItem[]> => {
+    const keys = getKeys(userId);
+    return await storage.getItem(keys.SYNC_QUEUE) || [];
   },
 
-  removeFromSyncQueue: async (id: string) => {
-    const queue = await offlineService.getSyncQueue();
+  removeFromSyncQueue: async (userId: string, id: string) => {
+    const keys = getKeys(userId);
+    const queue = await offlineService.getSyncQueue(userId);
     const filtered = queue.filter(item => item.id !== id);
-    await storage.setItem(KEYS.SYNC_QUEUE, filtered);
+    await storage.setItem(keys.SYNC_QUEUE, filtered);
   }
 };

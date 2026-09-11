@@ -54,6 +54,9 @@ export interface Transaction {
   totalAmount?: number;
   remainingAmount?: number;
   status?: 'pending' | 'partially_paid' | 'paid';
+  // Champs pour la liaison stock
+  productId?: string;
+  quantity?: number;
 }
 
 export interface DebtPayment {

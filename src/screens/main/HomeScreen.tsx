@@ -176,7 +176,9 @@ const HomeScreen = () => {
         isVisible={isModalVisible}
         onClose={() => setIsModalVisible(false)}
         type={transactionType}
-        onSuccess={loadData}
+        onSuccess={() => {
+          loadData();
+        }}
       />
 
       {/* Détails de la Transaction */}

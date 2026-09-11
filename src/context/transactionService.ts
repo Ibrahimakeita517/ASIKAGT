@@ -7,140 +7,149 @@ import { offlineService } from '../services/offlineService';
 
 export const transactionService = {
   getTransactions: async (userId: string): Promise<Transaction[]> => {
-    try {
-      // 1. Tenter de récupérer les dernières données depuis Supabase
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', userId)
-        .order('date', { ascending: false });
+    if (!userId) return [];
 
-      if (!error && data) {
-        const transactions = data.map(mapSupabaseTransactionToAppTransaction);
-        // Sauvegarder en local pour le mode hors ligne futur
-        await offlineService.saveTransactions(transactions);
-        return transactions;
-      }
-    } catch (e) {
-      console.log("Mode hors ligne : chargement des transactions locales");
-    }
+    // 1. Retourner les données locales de CET utilisateur
+    const localTransactions = await offlineService.getTransactions(userId);
 
-    // 2. Si échec (pas d'internet), retourner les données locales
-    return await offlineService.getTransactions();
+    // Mise à jour réseau en arrière-plan
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('user_id', userId)
+          .order('date', { ascending: false })
+          .limit(100);
+
+        if (!error && data) {
+          const remoteTransactions = data.map(mapSupabaseTransactionToAppTransaction);
+
+          // On protège les transactions locales non synchronisées
+          const queue = await offlineService.getSyncQueue(userId);
+          const pendingIds = queue.map(q => q.payload?.id || q.payload?.transactionId);
+
+          // FUSION INTELLIGENTE :
+          // 1. On prend tout ce qui est sur le serveur
+          // 2. On ajoute ce qui est local et en attente de synchro (mais pas encore sur le serveur)
+          const localPending = localTransactions.filter(lt => pendingIds.includes(lt.id) && !remoteTransactions.find(rt => rt.id === lt.id));
+          const finalTransactions = [...localPending, ...remoteTransactions];
+
+          await offlineService.saveTransactions(userId, finalTransactions);
+        }
+      } catch (e) {}
+    })();
+
+    return localTransactions;
   },
 
   addTransaction: async (transaction: Omit<Transaction, 'id' | 'createdAt'>): Promise<Transaction> => {
+    const userId = transaction.userId;
     const newTransaction: Transaction = {
       ...transaction,
       id: uuidv4(),
       createdAt: new Date().toISOString()
     };
 
-    // 1. Sauvegarde locale immédiate
-    const localTransactions = await offlineService.getTransactions();
-    await offlineService.saveTransactions([newTransaction, ...localTransactions]);
+    // 1. Sauvegarde locale isolée
+    const localTransactions = await offlineService.getTransactions(userId);
+    await offlineService.saveTransactions(userId, [newTransaction, ...localTransactions]);
 
-    // 2. Ajout à la file de synchronisation
-    await offlineService.addToSyncQueue({
+    // 2. File de synchro isolée
+    await offlineService.addToSyncQueue(userId, {
       id: newTransaction.id,
       type: 'ADD_TRANSACTION',
       payload: newTransaction
     });
 
-    // 3. Déclenchement immédiat de la synchro en arrière-plan
-    const { SyncManager } = require('../services/SyncManager');
-    SyncManager.sync();
+    // 3. Synchro
+    import('../services/SyncManager').then(({ SyncManager }) => {
+      SyncManager.sync(userId);
+    });
 
     return newTransaction;
   },
 
-  // ... (Je vais implémenter le reste dans la suite)
+  updateDebt: async (transactionId: string, paidAmount: number, userId: string): Promise<Transaction | null> => {
+    const localTransactions = await offlineService.getTransactions(userId);
+    const index = localTransactions.findIndex(t => t.id === transactionId);
 
-  updateDebt: async (transactionId: string, paidAmount: number): Promise<Transaction | null> => {
-    // 1. Mise à jour locale immédiate
-    const localTransactions = await offlineService.getTransactions();
-    const transactionIndex = localTransactions.findIndex(t => t.id === transactionId);
-
-    if (transactionIndex !== -1) {
-      const current = localTransactions[transactionIndex];
+    if (index !== -1) {
+      const current = localTransactions[index];
       const newRemaining = (current.remainingAmount || 0) - paidAmount;
-      const newStatus = newRemaining <= 0 ? 'paid' : 'partially_paid';
-
       const updatedTransaction: Transaction = {
         ...current,
         remainingAmount: newRemaining > 0 ? newRemaining : 0,
         amount: current.amount + paidAmount,
-        status: newStatus as any
+        status: (newRemaining <= 0 ? 'paid' : 'partially_paid') as any
       };
 
-      localTransactions[transactionIndex] = updatedTransaction;
-      await offlineService.saveTransactions(localTransactions);
+      localTransactions[index] = updatedTransaction;
+      await offlineService.saveTransactions(userId, localTransactions);
 
-      // 2. Ajout à la file de synchronisation
-      await offlineService.addToSyncQueue({
+      await offlineService.addToSyncQueue(userId, {
         id: uuidv4(),
         type: 'UPDATE_DEBT',
         payload: { transactionId, paidAmount }
       });
 
-      // 3. Déclenchement de la synchro en arrière-plan (sans bloquer)
-      try {
-        const { SyncManager } = require('../services/SyncManager');
-        SyncManager.sync();
-      } catch (e) {
-        console.log("Erreur synchro (sera re-tentée):", e);
-      }
+      import('../services/SyncManager').then(({ SyncManager }) => {
+        SyncManager.sync(userId);
+      });
 
       return updatedTransaction;
     }
     return null;
   },
 
-  deleteTransaction: async (transactionId: string): Promise<void> => {
-    // 1. Suppression locale immédiate
-    const localTransactions = await offlineService.getTransactions();
-    const filtered = localTransactions.filter(t => t.id !== transactionId);
-    await offlineService.saveTransactions(filtered);
+  deleteTransaction: async (transactionId: string, userId: string): Promise<void> => {
+    const localTransactions = await offlineService.getTransactions(userId);
+    const transactionToDelete = localTransactions.find(t => t.id === transactionId);
 
-    // 2. Ajout à la file de synchronisation
-    await offlineService.addToSyncQueue({
+    const filtered = localTransactions.filter(t => t.id !== transactionId);
+    await offlineService.saveTransactions(userId, filtered);
+
+    // Restauration du stock local
+    if (transactionToDelete?.productId && transactionToDelete?.quantity) {
+      const products = await offlineService.getProducts(userId);
+      const updatedProducts = products.map(p =>
+        p.id === transactionToDelete.productId ? { ...p, quantity: p.quantity + (transactionToDelete.quantity || 0) } : p
+      );
+      await offlineService.saveProducts(userId, updatedProducts);
+    }
+
+    await offlineService.addToSyncQueue(userId, {
       id: uuidv4(),
       type: 'DELETE_TRANSACTION',
-      payload: { transactionId }
+      payload: {
+        transactionId,
+        productId: transactionToDelete?.productId,
+        quantity: transactionToDelete?.quantity
+      }
     });
 
-    // 3. Déclenchement immédiat de la synchro
-    const { SyncManager } = require('../services/SyncManager');
-    SyncManager.sync();
+    import('../services/SyncManager').then(({ SyncManager }) => {
+      SyncManager.sync(userId);
+    });
   },
 
   getFinancialSummary: async (userId: string): Promise<FinancialSummary> => {
-    const transactions = await transactionService.getTransactions(userId);
-    
-    let totalSales = 0;
-    let totalExpenses = 0;
+    const transactions = await offlineService.getTransactions(userId);
+    let totalSales = 0, totalExpenses = 0;
 
     transactions.forEach(t => {
       if (t.type === 'sale' || t.type === 'debt') totalSales += t.amount;
       else if (t.type === 'expense') totalExpenses += t.amount;
     });
 
-    const balance = totalSales - totalExpenses;
-
-    return {
-      totalSales,
-      totalExpenses,
-      balance,
-      periodLabel: "Global"
-    };
+    return { totalSales, totalExpenses, balance: totalSales - totalExpenses, periodLabel: "Global" };
   },
 
-  getDailyStats: async (userId: string, days: number = 7): Promise<{labels: string[], sales: number[], expenses: number[]}> => {
-    const transactions = await transactionService.getTransactions(userId);
+  getDailyStats: async (userId: string, days: number = 7) => {
+    const transactions = await offlineService.getTransactions(userId);
     const now = new Date();
     const stats: { [key: string]: { sales: number, expenses: number } } = {};
 
-    // Initialiser les derniers X jours
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date();
       d.setDate(now.getDate() - i);

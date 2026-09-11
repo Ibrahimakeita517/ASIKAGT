@@ -4,59 +4,45 @@ import { supabase } from '../services/supabase';
 import { mapSupabaseUserToAppUser, mapAppUserToSupabaseInsert } from '../utils/supabaseMappers';
 
 const USERS_KEY = '@asika_users';
+const CURRENT_USER_KEY = '@asika_current_user';
 
 export const authService = {
-  getAllUsers: async (): Promise<User[]> => {
-    try {
-      const { data, error } = await supabase.from('users').select('*');
-      if (error) throw error;
+  // ... (autres méthodes)
+  saveUser: async (user: User): Promise<void> => {
+    const normalizedUser = { ...user, email: user.email.toLowerCase() };
+    // Sauvegarde locale immédiate
+    await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(normalizedUser));
 
-      const users = (data || []).map(u => mapSupabaseUserToAppUser(u));
-      // Persistance locale pour l'admin
-      await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
-      return Array.isArray(users) ? users : [];
-    } catch (error) {
-      console.log('Mode hors ligne (Admin): Chargement des utilisateurs locaux');
-      try {
-        const localData = await AsyncStorage.getItem(USERS_KEY);
-        if (!localData) return [];
-        const parsed = JSON.parse(localData);
-        return Array.isArray(parsed) ? parsed.map(u => mapSupabaseUserToAppUser(u)) : [];
-      } catch (e) {
-        return [];
-      }
+    try {
+      const { error } = await supabase.from('users').upsert(mapAppUserToSupabaseInsert(normalizedUser));
+      if (error) throw error;
+    } catch (e) {
+      console.log("Erreur sync profil (sera fait plus tard)");
     }
   },
 
-  saveUser: async (user: User): Promise<void> => {
-    // Normaliser l'email en minuscules pour éviter les erreurs de connexion
-    const normalizedUser = { ...user, email: user.email.toLowerCase() };
-    const { error } = await supabase.from('users').upsert(mapAppUserToSupabaseInsert(normalizedUser));
-    if (error) throw error;
-  },
+  findUserById: async (userId: string, retries = 3): Promise<User | null> => {
+    // 1. D'abord vérifier le cache local
+    try {
+      const localUser = await AsyncStorage.getItem(CURRENT_USER_KEY);
+      if (localUser) {
+        const parsed = JSON.parse(localUser);
+        if (parsed.id === userId) return parsed;
+      }
+    } catch (e) {}
 
-  findUserById: async (userId: string, retries = 5): Promise<User | null> => {
+    // 2. Sinon chercher en ligne
     for (let i = 0; i < retries; i++) {
       try {
-        console.log(`[AuthService] Recherche profil tentative ${i + 1}/${retries} pour:`, userId);
-        const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', userId)
-          .single();
-
-        if (error) {
-          console.warn("[AuthService] Erreur Supabase:", error.message);
-          if (i < retries - 1) {
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            continue;
-          }
-          return null;
+        const { data, error } = await supabase.from('users').select('*').eq('id', userId).single();
+        if (data) {
+          const user = mapSupabaseUserToAppUser(data);
+          await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+          return user;
         }
-        return data ? mapSupabaseUserToAppUser(data) : null;
       } catch (e) {
-        if (i === retries - 1) return null;
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        if (i === retries - 1) break;
+        await new Promise(r => setTimeout(r, 1000));
       }
     }
     return null;

@@ -25,9 +25,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const checkUser = async () => {
       try {
+        // On utilise les imports normaux au lieu de require
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          // On charge directement le vrai profil sans passer par un profil temporaire
           const profile = await authService.findUserById(session.user.id);
           if (profile) {
             setUser(profile);
@@ -35,9 +35,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(createDefaultUser(session.user.id, session.user.email || ""));
           }
         }
-        setIsLoading(false);
       } catch (e) {
         console.log("Erreur init auth:", e);
+      } finally {
         setIsLoading(false);
       }
     };
@@ -46,23 +46,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        // On ne met pas isLoading(false) tout de suite !
-        // On charge d'abord le vrai profil
         const profile = await authService.findUserById(session.user.id);
-        if (profile) {
-          setUser(profile);
-        } else {
-          // Si vraiment aucun profil en base, on met le défaut
-          setUser(createDefaultUser(session.user.id, session.user.email || ""));
-        }
-        setIsLoading(false); // On débloque seulement ici
+        if (profile) setUser(profile);
+        setIsLoading(false);
       } else {
         setUser(null);
         setIsLoading(false);
       }
     });
 
-    const timer = setTimeout(() => setIsLoading(false), 5000);
+    // Timeout de sécurité réduit à 1.5s pour le mode hors-ligne
+    const timer = setTimeout(() => setIsLoading(false), 1500);
 
     return () => {
       subscription.unsubscribe();

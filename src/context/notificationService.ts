@@ -28,15 +28,23 @@ export const notificationService = {
   async getUnreadCount(userId: string): Promise<number> {
     if (!userId) return 0;
     try {
-      const { count, error } = await supabase
+      // Utilisation d'un signal d'avortement ou d'une promesse de timeout pour le hors-ligne
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout')), 2000)
+      );
+
+      const fetchPromise = supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
         .eq('is_read', false)
         .in('receiver_id', [userId, 'all']);
 
-      if (error) return 0;
-      return count || 0;
+      const result: any = await Promise.race([fetchPromise, timeoutPromise]);
+
+      if (result.error) return 0;
+      return result.count || 0;
     } catch (e) {
+      // En mode hors-ligne, on ne bloque pas, on retourne 0
       return 0;
     }
   },

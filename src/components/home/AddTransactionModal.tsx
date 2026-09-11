@@ -20,6 +20,8 @@ import { Button } from '../common/Button';
 import { isNotEmpty } from '../../context/validators';
 import { transactionService } from '../../context/transactionService';
 import { stockService } from '../../context/stockService';
+import { offlineService } from '../../services/offlineService';
+import { v4 as uuidv4 } from 'uuid';
 import { TransactionType, Product, Transaction } from '../../models/types';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Switch } from 'react-native';
@@ -59,6 +61,23 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [productsLoading, setProductsLoading] = useState(false);
   const [errors, setErrors] = useState<any>({});
+
+  // Reset des champs quand le type change ou que la modale s'ouvre
+  useEffect(() => {
+    if (isVisible) {
+      setAmount('');
+      setDescription('');
+      setCategory(type === 'sale' ? '' : ''); // Force vide pour les deux
+      setQuantity('1');
+      setSearchQuery('');
+      setSelectedProductId(null);
+      setIsDebt(false);
+      setCustomerName('');
+      setCustomerPhone('');
+      setTotalAmount('');
+      setErrors({});
+    }
+  }, [isVisible, type]);
 
   // Charger les produits quand la modale s'ouvre pour une vente
   useEffect(() => {
@@ -152,6 +171,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         description: type === 'sale' ? description.trim() : category.trim(),
         category: category.trim(),
         date: new Date().toISOString(),
+        productId: selectedProductId || undefined,
+        quantity: qty
       };
 
       if (isDebt) {
@@ -162,17 +183,19 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         transactionData.status = transactionData.remainingAmount <= 0 ? 'paid' : 'partially_paid';
       }
 
-      // 1. Lancement de l'enregistrement en arrière-plan (sans bloquer l'UI)
-      transactionService.addTransaction(transactionData);
+      // 1. Enregistrer la transaction et ATTENDRE la confirmation locale
+      const addedTransaction = await transactionService.addTransaction(transactionData);
       
       // 2. Si c'est une vente de produit en stock, déduire la quantité
       if (type === 'sale' && selectedProductId) {
         const product = products.find(p => p.id === selectedProductId);
         if (product) {
           const newQty = product.quantity - qty;
-          stockService.updateQuantity(selectedProductId, newQty > 0 ? newQty : 0);
+          // AJOUT de user.id ici
+          await stockService.updateQuantity(selectedProductId, newQty > 0 ? newQty : 0, user.id);
 
-          offlineService.addToSyncQueue({
+          // AJOUT de user.id ici
+          await offlineService.addToSyncQueue(user.id, {
             id: uuidv4(),
             type: 'DECREMENT_STOCK',
             payload: { productId: selectedProductId, quantity: qty }
@@ -181,23 +204,28 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       }
 
       // 3. FERMETURE ET RAFRAÎCHISSEMENT IMMÉDIAT
-      // On n'attend pas la fin des sauvegardes pour rendre la main à l'utilisateur
-      setAmount('');
-      setDescription('');
-      setCategory('');
-      setQuantity('1');
-      setSearchQuery('');
-      setSelectedProductId(null);
-      setIsDebt(false);
-      setCustomerName('');
-      setCustomerPhone('');
-      setTotalAmount('');
+      onSuccess(); // Ce callback va maintenant trouver la transaction en local
+      onClose();
 
-      onSuccess();
-      onClose(); // Fermeture directe
+      // Reset des champs après fermeture pour la prochaine fois
+      setTimeout(() => {
+        setAmount('');
+        setDescription('');
+        setCategory('');
+        setQuantity('1');
+        setSearchQuery('');
+        setSelectedProductId(null);
+        setIsDebt(false);
+        setCustomerName('');
+        setCustomerPhone('');
+        setTotalAmount('');
+      }, 500);
+
     } catch (error) {
       console.error("Erreur lors de l'ajout:", error);
-      Alert.alert("Erreur", "Un problème est survenu.");
+      const msg = "Un problème est survenu lors de l'enregistrement.";
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert("Erreur", msg);
     } finally {
       setLoading(false);
     }
