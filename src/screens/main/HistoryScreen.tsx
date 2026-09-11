@@ -112,7 +112,7 @@ const HistoryScreen = () => {
     setLoading(true);
     try {
       const amountToPay = Number(paymentAmount);
-      const updated = await transactionService.updateDebt(selectedTransaction.id, amountToPay);
+      const updated = await transactionService.updateDebt(selectedTransaction.id, amountToPay, user!.id);
 
       if (updated) {
         setTransactions(prev => prev.map(t => t.id === updated.id ? updated : t));
