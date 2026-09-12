@@ -13,12 +13,54 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+/**
+ * Vérifie la connexion vers le serveur Laragon local.
+ */
 export const checkConnection = async () => {
   try {
-    const { data, error } = await supabase.from('users').select('id').limit(1);
-    if (error) return false;
-    return true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+    // Test sur le ping.php de Laragon
+    const response = await fetch('http://localhost/asika-api/ping.php', { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return response.ok;
   } catch (err) {
     return false;
+  }
+};
+
+/**
+ * Fonction universelle pour communiquer avec l'API Laragon.
+ * Intègre un timeout et une gestion d'erreurs standardisée.
+ */
+export const apiFetch = async (endpoint: string, options: any = {}) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 secondes de timeout
+
+  const baseUrl = 'http://localhost/asika-api/';
+
+  try {
+    const response = await fetch(`${baseUrl}${endpoint}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { data: null, error: errorText || `Erreur HTTP: ${response.status}` };
+    }
+
+    const data = await response.json();
+    return { data, error: null };
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    return { data: null, error: error.name === 'AbortError' ? 'Timeout réseau' : error.message };
   }
 };

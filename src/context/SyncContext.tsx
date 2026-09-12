@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import { SyncManager } from '../services/SyncManager';
 import { offlineService } from '../services/offlineService';
-import { supabase } from '../services/supabase';
+import { checkConnection } from '../services/supabase';
 import { useAuth } from './AuthContext';
 
 interface SyncContextType {
@@ -28,15 +28,10 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsOnline(false);
       return false;
     }
-    try {
-      const { error } = await supabase.from('users').select('id').limit(1);
-      const online = !error || error.code !== 'PGRST301';
-      setIsOnline(true);
-      return true;
-    } catch (e) {
-      setIsOnline(false);
-      return false;
-    }
+    // On utilise maintenant le checkConnection qui pointe vers Laragon (ping.php)
+    const online = await checkConnection();
+    setIsOnline(online);
+    return online;
   };
 
   useEffect(() => {
